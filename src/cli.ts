@@ -37,7 +37,7 @@ function saveConfig(config: Config) {
 async function login() {
 	console.log('🔐 Starting Rapport MCP authentication...\n');
 
-	const authUrl = `http://localhost:5176/mcp/auth?callback=http://localhost:${PORT}/callback`;
+	const authUrl = `https://rapport.dev/mcp/auth?callback=http://localhost:${PORT}/callback`;
 
 	// Start local callback server
 	const server = http.createServer((req, res) => {
