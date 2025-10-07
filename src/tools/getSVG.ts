@@ -1,29 +1,20 @@
-import { supabase } from '../db.js';
+import { supabase, getUserId } from '../db.js';
 
 export interface GetSVGArgs {
-	project_id: string;
 	include_metadata?: boolean;
-	user_id?: string; // Optional: Verify user owns the project
 }
 
 export async function getSVG(args: GetSVGArgs) {
-	let query = supabase
+	const userId = getUserId();
+
+	const { data, error } = await supabase
 		.from('projects')
-		.select('svg_document, title, pins, updated_at, is_public, user_id')
-		.eq('id', args.project_id);
-
-	// If user_id provided, verify ownership
-	if (args.user_id) {
-		query = query.eq('user_id', args.user_id);
-	}
-
-	const { data, error } = await query.single();
+		.select('id, svg_document, title, pins, updated_at, is_public, user_id')
+		.eq('user_id', userId)
+		.single();
 
 	if (error) {
-		const message = args.user_id
-			? `Project not found or you don't have access: ${args.project_id}`
-			: `Project not found: ${args.project_id}`;
-		throw new Error(`${message} - ${error.message}`);
+		throw new Error(`Project not found for your account - ${error.message}`);
 	}
 
 	// Parse SVG to get element count and canvas info
@@ -35,7 +26,7 @@ export async function getSVG(args: GetSVGArgs) {
 
 	if (args.include_metadata !== false) {
 		const metadata = {
-			project_id: args.project_id,
+			project_id: data.id,
 			title: data.title,
 			element_count: elementCount,
 			viewBox: viewBox,

@@ -1,20 +1,21 @@
-import { supabase } from '../db.js';
+import { supabase, getUserId } from '../db.js';
 import { DOMParser } from '@xmldom/xmldom';
 
 export interface QueryElementsArgs {
-	project_id: string;
 	selector: string;
 }
 
 export async function queryElements(args: QueryElementsArgs) {
+	const userId = getUserId();
+
 	const { data, error } = await supabase
 		.from('projects')
 		.select('svg_document')
-		.eq('id', args.project_id)
+		.eq('user_id', userId)
 		.single();
 
 	if (error) {
-		throw new Error(`Project not found: ${args.project_id} - ${error.message}`);
+		throw new Error(`Project not found for your account - ${error.message}`);
 	}
 
 	const parser = new DOMParser();

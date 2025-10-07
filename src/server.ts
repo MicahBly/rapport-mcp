@@ -32,52 +32,34 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 	tools: [
 		{
 			name: 'get_svg',
-			description: 'Get the SVG document and metadata for a Rapport canvas. Returns the current SVG along with canvas information like element count, viewBox, pins, and update history.',
+			description: 'Get the SVG document and metadata for your Rapport canvas. Returns the current SVG along with canvas information like element count, viewBox, pins, and update history. Automatically fetches your canvas using your authenticated user account.',
 			inputSchema: {
 				type: 'object',
 				properties: {
-					project_id: {
-						type: 'string',
-						description: 'The project ID (UUID)'
-					},
 					include_metadata: {
 						type: 'boolean',
 						description: 'Include canvas metadata (default: true)',
 						default: true
-					},
-					user_id: {
-						type: 'string',
-						description: 'Optional: User ID to verify project ownership. If provided, only returns projects owned by this user.',
-						default: undefined
 					}
 				},
-				required: ['project_id']
+				required: []
 			}
 		},
 		{
 			name: 'get_canvas_template',
-			description: 'Get a comprehensive template and guide for modifying a Rapport canvas. This provides the current canvas state plus detailed instructions on how to add/modify elements, including examples, security guidelines, and best practices. USE THIS FIRST before making any changes to understand the canvas structure.',
+			description: 'Get a comprehensive template and guide for modifying your Rapport canvas. This provides the current canvas state plus detailed instructions on how to add/modify elements, including examples, security guidelines, and best practices. USE THIS FIRST before making any changes to understand the canvas structure. Automatically fetches your canvas using your authenticated user account.',
 			inputSchema: {
 				type: 'object',
-				properties: {
-					project_id: {
-						type: 'string',
-						description: 'The project ID (UUID)'
-					}
-				},
-				required: ['project_id']
+				properties: {},
+				required: []
 			}
 		},
 		{
 			name: 'update_svg',
-			description: 'Update the SVG document for a Rapport canvas. The SVG will be validated for security (no scripts, event handlers, or malicious content) and integrity before being saved. Returns detailed feedback about the update including element counts and any warnings.',
+			description: 'Update the SVG document for your Rapport canvas. The SVG will be validated for security (no scripts, event handlers, or malicious content) and integrity before being saved. Returns detailed feedback about the update including element counts and any warnings. Automatically updates your canvas using your authenticated user account.',
 			inputSchema: {
 				type: 'object',
 				properties: {
-					project_id: {
-						type: 'string',
-						description: 'The project ID (UUID)'
-					},
 					svg_document: {
 						type: 'string',
 						description: 'The complete, valid SVG document as a string. Must include <svg> wrapper with xmlns and viewBox attributes. All elements must have unique IDs and appropriate data-type attributes.'
@@ -86,33 +68,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 						type: 'boolean',
 						description: 'Skip security validation (NOT RECOMMENDED - use only for emergency overrides)',
 						default: false
-					},
-					user_id: {
-						type: 'string',
-						description: 'Optional: User ID to verify project ownership. If provided, only allows updates to projects owned by this user.',
-						default: undefined
 					}
 				},
-				required: ['project_id', 'svg_document']
+				required: ['svg_document']
 			}
 		},
 		{
 			name: 'query_elements',
-			description: 'Query and search for specific elements in a Rapport canvas using CSS-like selectors. Useful for finding elements by type, ID, or data attributes before modifying them.',
+			description: 'Query and search for specific elements in your Rapport canvas using CSS-like selectors. Useful for finding elements by type, ID, or data attributes before modifying them. Automatically queries your canvas using your authenticated user account.',
 			inputSchema: {
 				type: 'object',
 				properties: {
-					project_id: {
-						type: 'string',
-						description: 'The project ID (UUID)'
-					},
 					selector: {
 						type: 'string',
 						description:
 							'CSS selector (supports: tag names like "rect" or "circle", #id for specific elements, [data-type="value"] for element types)'
 					}
 				},
-				required: ['project_id', 'selector']
+				required: ['selector']
 			}
 		}
 	]

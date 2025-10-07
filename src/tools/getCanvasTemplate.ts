@@ -1,19 +1,19 @@
-import { supabase } from '../db.js';
+import { supabase, getUserId } from '../db.js';
 
-export interface GetCanvasTemplateArgs {
-	project_id: string;
-}
+export interface GetCanvasTemplateArgs {}
 
 export async function getCanvasTemplate(args: GetCanvasTemplateArgs) {
+	const userId = getUserId();
+
 	// Get current canvas state
 	const { data, error } = await supabase
 		.from('projects')
-		.select('svg_document, title, pins')
-		.eq('id', args.project_id)
+		.select('id, svg_document, title, pins')
+		.eq('user_id', userId)
 		.single();
 
 	if (error) {
-		throw new Error(`Project not found: ${args.project_id} - ${error.message}`);
+		throw new Error(`Project not found for your account - ${error.message}`);
 	}
 
 	// Extract viewBox from current canvas
@@ -138,7 +138,7 @@ When making changes, return ONLY the complete, valid SVG document:
 - ViewBox format is: x y width height
 
 ## Current Canvas Info
-- Project ID: ${args.project_id}
+- Project ID: ${data.id}
 - Title: ${data.title}
 - Pins: ${data.pins?.length || 0} navigation pins
 - Element Count: ${(data.svg_document.match(/<(rect|circle|path|line|text|ellipse|polygon|polyline)/g) || []).length}

@@ -1,14 +1,14 @@
-import { supabase } from '../db.js';
+import { supabase, getUserId } from '../db.js';
 import { validateSVG, getSVGStats } from '../utils/svgValidator.js';
 
 export interface UpdateSVGArgs {
-	project_id: string;
 	svg_document: string;
 	skip_validation?: boolean; // For emergency overrides (use with caution)
-	user_id?: string; // Optional: Verify user owns the project
 }
 
 export async function updateSVG(args: UpdateSVGArgs) {
+	const userId = getUserId();
+
 	// Comprehensive validation
 	const validation = validateSVG(args.svg_document);
 
@@ -35,27 +35,29 @@ export async function updateSVG(args: UpdateSVGArgs) {
 	// Get stats for confirmation message
 	const stats = getSVGStats(svgToSave);
 
-	// Build update query with optional user verification
-	let query = supabase
+	// First, get the user's project to update
+	const { data: project, error: fetchError } = await supabase
+		.from('projects')
+		.select('id')
+		.eq('user_id', userId)
+		.single();
+
+	if (fetchError) {
+		throw new Error(`Failed to find your project: ${fetchError.message}`);
+	}
+
+	// Update the project
+	const { error } = await supabase
 		.from('projects')
 		.update({
 			svg_document: svgToSave,
 			updated_at: new Date().toISOString()
 		})
-		.eq('id', args.project_id);
-
-	// If user_id provided, verify ownership
-	if (args.user_id) {
-		query = query.eq('user_id', args.user_id);
-	}
-
-	const { error } = await query;
+		.eq('id', project.id)
+		.eq('user_id', userId);
 
 	if (error) {
-		const message = args.user_id
-			? `Failed to update SVG: You don't have permission to modify this project`
-			: `Failed to update SVG`;
-		throw new Error(`${message}: ${error.message}`);
+		throw new Error(`Failed to update SVG: ${error.message}`);
 	}
 
 	// Build success message

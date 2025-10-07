@@ -54,6 +54,14 @@ function getSupabaseClient() {
 	return _supabase;
 }
 
+export function getUserId(): string {
+	const config = loadConfig();
+	if (!config.user_id) {
+		throw new Error('Not authenticated. Run `rapport-mcp login` to authenticate.');
+	}
+	return config.user_id;
+}
+
 export const supabase = new Proxy({} as any, {
 	get(target, prop) {
 		return getSupabaseClient()[prop];
