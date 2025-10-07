@@ -1,0 +1,24 @@
+# Source files (only ship dist/)
+src/
+tsconfig.json
+
+# Development files
+.env
+.env.example
+*.log
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Testing
+coverage/
+*.test.ts
+*.spec.ts
+
+# Documentation (keep README.md and AGENT_GUIDE.md)
+# Nothing here - we want to include docs

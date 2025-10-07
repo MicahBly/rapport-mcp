@@ -1,0 +1,47 @@
+{
+	"name": "rapport-mcp",
+	"version": "1.0.0",
+	"description": "Model Context Protocol (MCP) server for Rapport - enables AI agents to create and modify visual canvases",
+	"type": "module",
+	"main": "dist/server.js",
+	"bin": {
+		"rapport-mcp": "dist/cli.js"
+	},
+	"scripts": {
+		"build": "tsc",
+		"prepublishOnly": "npm run build"
+	},
+	"keywords": [
+		"mcp",
+		"model-context-protocol",
+		"claude",
+		"ai",
+		"svg",
+		"canvas",
+		"visual",
+		"rapport"
+	],
+	"author": "Instant Unicorn",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/MicahBly/rapport-mcp.git"
+	},
+	"bugs": {
+		"url": "https://github.com/MicahBly/rapport-mcp/issues"
+	},
+	"homepage": "https://github.com/MicahBly/rapport-mcp#readme",
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.0.4",
+		"@supabase/supabase-js": "^2.39.7",
+		"@xmldom/xmldom": "^0.8.10",
+		"dotenv": "^16.6.1"
+	},
+	"devDependencies": {
+		"@types/node": "^20.11.16",
+		"typescript": "^5.3.3"
+	},
+	"engines": {
+		"node": ">=18.0.0"
+	}
+}
