@@ -29,7 +29,7 @@ export function validateSVG(svgContent: string): ValidationResult {
 	const dangerousPatterns = [
 		{ pattern: /<script[^>]*>/gi, name: 'script tags' },
 		{ pattern: /<iframe[^>]*>/gi, name: 'iframe tags' },
-		{ pattern: /<object[^>]*>/gi, name: 'object tags' },
+		{ pattern: /<object[\s>\/]/gi, name: 'object tags' }, // Match <object> or <object attr> but not <object-data>
 		{ pattern: /<embed[^>]*>/gi, name: 'embed tags' },
 		{ pattern: /on\w+\s*=/gi, name: 'event handlers (onclick, onload, etc.)' },
 		{ pattern: /javascript:/gi, name: 'javascript: protocol' },
@@ -51,9 +51,10 @@ export function validateSVG(svgContent: string): ValidationResult {
 	}
 
 	// 4. Validate XML structure (basic check)
-	const openTags = (svgContent.match(/<(\w+)[^>]*>/g) || []);
-	const closeTags = (svgContent.match(/<\/(\w+)>/g) || []);
-	const selfClosingTags = (svgContent.match(/<\w+[^>]*\/>/g) || []);
+	// Include hyphens in tag names (e.g., object-data, custom-element)
+	const openTags = (svgContent.match(/<([\w-]+)[^>]*>/g) || []);
+	const closeTags = (svgContent.match(/<\/([\w-]+)>/g) || []);
+	const selfClosingTags = (svgContent.match(/<[\w-]+[^>]*\/>/g) || []);
 
 	// Don't count self-closing tags as needing closing tags
 	const expectedCloseTags = openTags.length - selfClosingTags.length;

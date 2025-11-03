@@ -34,13 +34,38 @@ ${data.svg_document}
 - All coordinates are in SVG space (not screen pixels)
 - The canvas has infinite scroll/zoom, so elements can be placed anywhere
 
+### CRITICAL: Object Wrapper Structure
+
+**ALL elements MUST be wrapped in an object container** for them to be interactive and editable. Use this structure:
+
+\`\`\`xml
+<g id="obj-unique-timestamp" data-object-type="object" data-object-name="Element Name">
+  <metadata>
+    <object-data>
+      <name>Element Name</name>
+      <position>x,y</position>
+    </object-data>
+  </metadata>
+  <!-- Your actual element here -->
+  <rect .../>
+</g>
+\`\`\`
+
 ### Supported Elements
 
-**Rectangles (boxes)**
+**Rectangles (boxes)** - MUST be wrapped in object container
 \`\`\`xml
-<rect id="unique-id" x="100" y="100" width="200" height="150"
-      fill="#ffffff" stroke="#000000" stroke-width="2"
-      rx="8" ry="8" data-type="box"/>
+<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Rect 1">
+  <metadata>
+    <object-data>
+      <name>Rect 1</name>
+      <position>100,100</position>
+    </object-data>
+  </metadata>
+  <rect id="rect-${Date.now()}" x="100" y="100" width="200" height="150"
+        fill="#ffffff" stroke="#000000" stroke-width="2"
+        rx="8" ry="8" data-type="box"/>
+</g>
 \`\`\`
 
 **Circles**
@@ -104,10 +129,18 @@ To add a blue box at position (400, 300):
   <!-- Existing elements stay here -->
   ${data.svg_document.match(/<svg[^>]*>([\s\S]*)<\/svg>/)?.[1]?.trim() || ''}
 
-  <!-- New element -->
-  <rect id="box-${Date.now()}-new" x="400" y="300" width="200" height="150"
-        fill="#3b82f6" stroke="#1e40af" stroke-width="2"
-        rx="8" ry="8" data-type="box"/>
+  <!-- New element wrapped in object container -->
+  <g id="obj-${Date.now()}" data-object-type="object" data-object-name="Rect 1">
+    <metadata>
+      <object-data>
+        <name>Rect 1</name>
+        <position>400,300</position>
+      </object-data>
+    </metadata>
+    <rect id="box-${Date.now()}-new" x="400" y="300" width="200" height="150"
+          fill="#3b82f6" stroke="#1e40af" stroke-width="2"
+          rx="8" ry="8" data-type="box"/>
+  </g>
 </svg>
 \`\`\`
 

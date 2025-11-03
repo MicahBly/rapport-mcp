@@ -8,12 +8,34 @@ Model Context Protocol (MCP) server for [Rapport](https://rapport.dev) - enables
 - 🔍 **Element Queries** - Find specific elements using CSS selectors
 - 📝 **Templates & Guides** - Get comprehensive editing instructions
 - 🛡️ **Security Validation** - Built-in XSS and script injection prevention
-- 🔐 **OAuth Authentication** - Seamless browser-based login flow
+- 🔐 **OAuth Authentication** - Seamless browser-based login flow (works on remote servers!)
 
 ## Installation
 
+### Option 1: Using Claude Code (Recommended)
+
+```bash
+# Install from npm
+claude mcp add rapport-mcp
+
+# Or use npx (no install required)
+claude mcp add npx rapport-mcp
+
+# Or for local development
+claude mcp add npx /path/to/rapport-mcp
+```
+
+### Option 2: Global npm Install
+
 ```bash
 npm install -g rapport-mcp
+```
+
+### Option 3: Use with npx (No Install)
+
+```bash
+# No installation needed - npx will run it on demand
+npx rapport-mcp login
 ```
 
 ## Quick Start
@@ -25,18 +47,32 @@ rapport-mcp login
 ```
 
 This will:
-1. Open your browser to rapport.dev
-2. Log you in (or use existing session)
-3. Save your auth tokens locally
-4. You're ready to go!
+1. Generate a secure session ID
+2. Open your browser to rapport.dev
+3. Log you in (or use existing session)
+4. Automatically detect when you've authenticated
+5. Save your auth tokens locally
+6. You're ready to go!
 
-### 2. Configure Claude Desktop
+### 2. Configure Your AI Client
+
+#### For Claude Code
+
+Already done if you used `claude mcp add`! Otherwise:
+
+```bash
+claude mcp add rapport-mcp
+```
+
+#### For Claude Desktop
 
 Add to your `claude_desktop_config.json`:
 
 **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+**Linux**: `~/.config/claude/claude_desktop_config.json`
 
+**Option A: With global install**
 ```json
 {
   "mcpServers": {
@@ -48,48 +84,69 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-### 3. Restart Claude Desktop
+**Option B: With npx (no install needed)**
+```json
+{
+  "mcpServers": {
+    "rapport": {
+      "command": "npx",
+      "args": ["-y", "rapport-mcp"]
+    }
+  }
+}
+```
+
+**Option C: Local development**
+```json
+{
+  "mcpServers": {
+    "rapport": {
+      "command": "npx",
+      "args": ["-y", "/path/to/rapport-mcp"]
+    }
+  }
+}
+```
+
+### 3. Restart Your AI Client
 
 That's it! Claude can now interact with your Rapport canvases.
 
 ## Available Tools
 
 ### `get_svg`
-Get the SVG document and metadata for a canvas.
+Get the SVG document and metadata for your canvas.
 
 ```typescript
 {
-  "project_id": "uuid",
   "include_metadata": true  // optional
 }
 ```
 
+**Note**: Automatically uses your authenticated user account - no project ID needed!
+
 ### `get_canvas_template`
-Get a comprehensive guide for modifying a canvas. **Use this first** before making changes!
+Get a comprehensive guide for modifying your canvas. **Use this first** before making changes!
 
 ```typescript
-{
-  "project_id": "uuid"
-}
+{}
 ```
 
 ### `update_svg`
-Update a canvas with new SVG content. Includes automatic security validation.
+Update your canvas with new SVG content. Includes automatic security validation.
 
 ```typescript
 {
-  "project_id": "uuid",
   "svg_document": "<svg>...</svg>",
   "skip_validation": false  // optional, NOT recommended
 }
 ```
 
 ### `query_elements`
-Find elements using CSS selectors.
+Find elements in your canvas using CSS selectors.
 
 ```typescript
 {
-  "project_id": "uuid",
   "selector": "rect[fill='blue']"
 }
 ```
@@ -109,8 +166,10 @@ rapport-mcp logout
 
 ## Security
 
-- ✅ OAuth-based authentication (no manual token copying!)
+- ✅ OAuth-based authentication with automatic polling (no manual token copying!)
+- ✅ Works on remote servers without localhost dependencies
 - ✅ Tokens stored securely in `~/.rapport-mcp/config.json`
+- ✅ Session-based flow with automatic expiration
 - ✅ Automatic XSS and script injection prevention
 - ✅ Row Level Security (RLS) enforces project ownership
 - ✅ Comprehensive SVG validation
@@ -118,11 +177,15 @@ rapport-mcp logout
 ## How It Works
 
 1. User runs `rapport-mcp login`
-2. Browser opens to rapport.dev for authentication
-3. After login, tokens are sent to local callback server
-4. Tokens saved to `~/.rapport-mcp/config.json`
-5. MCP server uses tokens with Supabase RLS
-6. Only user's own projects are accessible
+2. CLI generates a unique session ID
+3. Browser opens to rapport.dev for authentication
+4. After login, rapport.dev stores tokens server-side linked to session
+5. CLI automatically polls for authentication completion
+6. Once complete, tokens saved to `~/.rapport-mcp/config.json`
+7. MCP server uses tokens with Supabase RLS
+8. Only user's own projects are accessible
+
+**Remote Server Friendly**: No localhost callback needed - works perfectly on remote servers via SSH!
 
 ## Example Usage with Claude
 
@@ -162,8 +225,12 @@ Make sure you're logged in with the correct account that owns the project.
 ### "SVG validation failed"
 The SVG contains unsafe content (scripts, event handlers). Check the error message for details.
 
-### OAuth callback times out
-Make sure port 3456 is available on your machine.
+### OAuth authentication times out
+The authentication flow times out after 5 minutes. If this happens:
+1. Make sure you can access rapport.dev from your browser
+2. Complete the authentication promptly after the browser opens
+3. Check your internet connection
+4. Try running `rapport-mcp login` again
 
 ## Links
 
