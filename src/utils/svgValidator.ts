@@ -100,7 +100,53 @@ export function validateSVG(svgContent: string): ValidationResult {
 		warnings.push('No viewBox attribute found');
 	}
 
-	// 8. Sanitize SVG (remove dangerous content)
+	// 8. Check for unwrapped elements (not inside <g data-object-type="object">)
+	// This helps catch elements that won't be selectable in Rapport
+	const elementTags = ['rect', 'circle', 'line', 'path', 'text', 'ellipse', 'polygon', 'polyline'];
+	const unwrappedElements: string[] = [];
+
+	for (const tag of elementTags) {
+		// Find all elements of this type
+		const regex = new RegExp(`<${tag}[^>]*id="([^"]*)"`, 'gi');
+		let match;
+		while ((match = regex.exec(svgContent)) !== null) {
+			const elementId = match[1];
+
+			// Skip if element is in <defs> or <marker> (these don't need wrapping)
+			const beforeElement = svgContent.substring(0, match.index);
+			if (beforeElement.lastIndexOf('<defs') > beforeElement.lastIndexOf('</defs') ||
+				beforeElement.lastIndexOf('<marker') > beforeElement.lastIndexOf('</marker')) {
+				continue;
+			}
+
+			// Check if this element is inside a <g data-object-type="object">
+			// Look backwards from the element to find the nearest <g> tag
+			const lastGTag = beforeElement.lastIndexOf('<g');
+
+			if (lastGTag !== -1) {
+				const gTagEnd = svgContent.indexOf('>', lastGTag);
+				const gTagContent = svgContent.substring(lastGTag, gTagEnd + 1);
+
+				// Check if it has data-object-type="object"
+				if (!gTagContent.includes('data-object-type="object"')) {
+					unwrappedElements.push(`${tag}#${elementId}`);
+				}
+			} else {
+				unwrappedElements.push(`${tag}#${elementId}`);
+			}
+		}
+	}
+
+	if (unwrappedElements.length > 0) {
+		warnings.push(
+			`Found ${unwrappedElements.length} element(s) not wrapped in <g data-object-type="object"> containers. ` +
+			`These elements will NOT be selectable or editable in Rapport. ` +
+			`Wrap each element in: <g data-object-type="object" data-object-name="..."><metadata>...</metadata>...</g>. ` +
+			`Unwrapped: ${unwrappedElements.slice(0, 5).join(', ')}${unwrappedElements.length > 5 ? '...' : ''}`
+		);
+	}
+
+	// 9. Sanitize SVG (remove dangerous content)
 	let sanitized = svgContent;
 
 	// Remove script tags

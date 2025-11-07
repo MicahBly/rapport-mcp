@@ -22,6 +22,8 @@ export async function getCanvasTemplate(args: GetCanvasTemplateArgs) {
 
 	const template = `# Rapport Canvas Editing Guide
 
+⚠️ **CRITICAL REQUIREMENT**: ALL elements (rect, circle, line, path, text) MUST be wrapped in \`<g data-object-type="object">\` containers with metadata. Elements without this wrapper will NOT be selectable or editable! See "Object Wrapper Structure" section below.
+
 ## Current Canvas
 \`\`\`xml
 ${data.svg_document}
@@ -41,9 +43,9 @@ ${data.svg_document}
 \`\`\`xml
 <g id="obj-unique-timestamp" data-object-type="object" data-object-name="Element Name">
   <metadata>
-    <object-data>
+    <object-data xmlns="">
       <name>Element Name</name>
-      <position>x,y</position>
+      <position x="100" y="100"/>
     </object-data>
   </metadata>
   <!-- Your actual element here -->
@@ -55,64 +57,90 @@ ${data.svg_document}
 
 **Rectangles (boxes)** - MUST be wrapped in object container
 \`\`\`xml
-<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Rect 1">
+<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Rectangle">
   <metadata>
-    <object-data>
-      <name>Rect 1</name>
-      <position>100,100</position>
+    <object-data xmlns="">
+      <name>Rectangle</name>
+      <position x="100" y="100"/>
     </object-data>
   </metadata>
-  <rect id="rect-${Date.now()}" x="100" y="100" width="200" height="150"
+  <rect id="box-${Date.now()}" x="100" y="100" width="200" height="150"
         fill="#ffffff" stroke="#000000" stroke-width="2"
         rx="8" ry="8" data-type="box"/>
 </g>
 \`\`\`
 
-**Circles**
+**Circles** - MUST be wrapped in object container
 \`\`\`xml
-<circle id="unique-id" cx="300" cy="200" r="50"
-        fill="#ffffff" stroke="#000000" stroke-width="2"
-        data-type="shape" data-shape="circle"/>
+<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Circle">
+  <metadata>
+    <object-data xmlns="">
+      <name>Circle</name>
+      <position x="300" y="200"/>
+    </object-data>
+  </metadata>
+  <circle id="circle-${Date.now()}" cx="300" cy="200" r="50"
+          fill="#ffffff" stroke="#000000" stroke-width="2"
+          data-type="circle"/>
+</g>
 \`\`\`
 
-**Lines**
+**Lines** - MUST be wrapped in object container
 \`\`\`xml
-<line id="unique-id" x1="100" y1="100" x2="300" y2="200"
-      stroke="#000000" stroke-width="2" data-type="line"/>
+<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Line">
+  <metadata>
+    <object-data xmlns="">
+      <name>Line</name>
+      <position x="0" y="0"/>
+    </object-data>
+  </metadata>
+  <line id="line-${Date.now()}" x1="100" y1="100" x2="300" y2="200"
+        stroke="#000000" stroke-width="2" data-type="line"/>
+</g>
 \`\`\`
 
-**Pencil Paths**
+**Pencil Paths** - MUST be wrapped in object container
 \`\`\`xml
-<path id="unique-id" d="M 100 100 L 150 120 L 200 100"
-      stroke="#000000" stroke-width="2" fill="none"
-      stroke-linecap="round" stroke-linejoin="round"
-      data-type="pencil"/>
+<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Drawing">
+  <metadata>
+    <object-data xmlns="">
+      <name>Drawing</name>
+      <position x="0" y="0"/>
+    </object-data>
+  </metadata>
+  <path id="pencil-${Date.now()}" d="M 100 100 L 150 120 L 200 100"
+        stroke="#000000" stroke-width="2" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"
+        data-type="pencil"/>
+</g>
 \`\`\`
 
-**Text**
+**Text** - MUST be wrapped in object container
 \`\`\`xml
-<text id="unique-id" x="100" y="100"
-      font-size="16" font-family="Arial" fill="#000000"
-      data-type="text">Your text here</text>
-\`\`\`
-
-**Groups (for organizing)**
-\`\`\`xml
-<g id="group-unique-id" data-type="group">
-  <!-- Child elements here -->
-  <rect .../>
-  <text .../>
+<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Text">
+  <metadata>
+    <object-data xmlns="">
+      <name>Text</name>
+      <position x="100" y="100"/>
+    </object-data>
+  </metadata>
+  <text id="text-${Date.now()}" x="100" y="100"
+        font-size="16" font-family="Arial" fill="#000000"
+        data-type="text">Your text here</text>
 </g>
 \`\`\`
 
 ### Important Rules
 
-1. **Always include unique IDs**: Use format like \`element-timestamp-random\`
-2. **Always include data-type attribute**: Helps our system recognize element types
-3. **Preserve the SVG wrapper**: Keep the \`<svg>\` tag and its attributes
-4. **Use valid colors**: Hex colors (#RRGGBB) or named colors
-5. **Keep stroke-width reasonable**: Between 1-20 for most elements
-6. **Preserve existing elements**: Unless explicitly asked to remove them
+1. **Always wrap elements in object containers**: Use \`<g data-object-type="object">\` wrapper for selectability
+2. **Include metadata for all objects**: Required structure with \`<object-data>\` containing name and position
+3. **Always include unique IDs**: Use format like \`obj-timestamp\` for groups, \`element-timestamp\` for inner elements
+4. **Always include data-type attribute**: Helps our system recognize element types (box, circle, line, pencil, text)
+5. **Always include data-object-name**: User-friendly name for the object
+6. **Preserve the SVG wrapper**: Keep the \`<svg>\` tag and its attributes
+7. **Use valid colors**: Hex colors (#RRGGBB) or named colors
+8. **Keep stroke-width reasonable**: Between 1-20 for most elements
+9. **Preserve existing elements**: Unless explicitly asked to remove them
 
 ### Security Notes
 - Script tags (\`<script>\`) are NOT allowed and will be rejected
@@ -129,15 +157,15 @@ To add a blue box at position (400, 300):
   <!-- Existing elements stay here -->
   ${data.svg_document.match(/<svg[^>]*>([\s\S]*)<\/svg>/)?.[1]?.trim() || ''}
 
-  <!-- New element wrapped in object container -->
-  <g id="obj-${Date.now()}" data-object-type="object" data-object-name="Rect 1">
+  <!-- New selectable object -->
+  <g id="obj-${Date.now()}" data-object-type="object" data-object-name="Blue Box">
     <metadata>
-      <object-data>
-        <name>Rect 1</name>
-        <position>400,300</position>
+      <object-data xmlns="">
+        <name>Blue Box</name>
+        <position x="400" y="300"/>
       </object-data>
     </metadata>
-    <rect id="box-${Date.now()}-new" x="400" y="300" width="200" height="150"
+    <rect id="box-${Date.now()}" x="400" y="300" width="200" height="150"
           fill="#3b82f6" stroke="#1e40af" stroke-width="2"
           rx="8" ry="8" data-type="box"/>
   </g>
