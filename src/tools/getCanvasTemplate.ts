@@ -53,6 +53,120 @@ ${data.svg_document}
 </g>
 \`\`\`
 
+### CRITICAL: Coordinate Alignment Rules
+
+**The \`<position>\` metadata MUST align with the actual child element coordinates!**
+
+This is essential to prevent "weird dragging" or stretching behavior. When users drag objects, Rapport uses the position as the transform origin. If position doesn't match the geometric center of children, objects will move incorrectly.
+
+**How to calculate proper position:**
+
+1. **Create all child elements first** with their desired coordinates
+2. **Find the bounding box** - determine min/max X and Y across all children
+3. **Calculate geometric center**:
+   - \`position.x = (minX + maxX) / 2\`
+   - \`position.y = (minY + maxY) / 2\`
+4. **Set position metadata** to this center point
+
+**Example calculation:**
+
+\`\`\`
+Child elements:
+- rect at x=100, width=200 → X range: 100 to 300
+- circle at cx=250, r=50 → X range: 200 to 300
+Combined X range: 100 to 300 → Center X: (100 + 300) / 2 = 200
+
+- rect at y=150, height=100 → Y range: 150 to 250
+- circle at cy=200, r=50 → Y range: 150 to 250
+Combined Y range: 150 to 250 → Center Y: (150 + 250) / 2 = 200
+
+Therefore: <position x="200" y="200"/>
+\`\`\`
+
+**❌ BAD Example (will cause dragging issues):**
+
+\`\`\`xml
+<g data-object-type="object" data-object-name="Misaligned Box">
+  <metadata>
+    <position x="200" y="200"/>  <!-- Position here -->
+  </metadata>
+  <!-- But child is 600px away! -->
+  <circle cx="800" cy="900" r="50"/>  ❌ 600-700px offset causes stretching!
+</g>
+\`\`\`
+
+**✅ GOOD Example (proper alignment):**
+
+\`\`\`xml
+<g data-object-type="object" data-object-name="Aligned Box">
+  <metadata>
+    <position x="800" y="900"/>  <!-- Position matches child center -->
+  </metadata>
+  <circle cx="800" cy="900" r="50"/>  ✓ Perfect alignment!
+</g>
+\`\`\`
+
+**Guidelines:**
+- Keep children within ±200px of position point for medium-sized objects
+- For grouped objects (multiple children), position should be at the geometric center
+- Validator will warn if offset exceeds safe thresholds
+
+### Transform Attributes (Alternative Approach)
+
+You can use SVG transforms to position children relative to (0, 0):
+
+**When to use transforms:**
+- Use \`transform="translate(x, y)"\` on the \`<g>\` wrapper when you want children at relative coordinates
+- Ensure position metadata matches the transform values
+- This approach works well for reusable components
+
+**Example with transform:**
+
+\`\`\`xml
+<g id="obj-${Date.now()}" data-object-type="object"
+   data-object-name="Transformed Box"
+   transform="translate(200, 200)">
+  <metadata>
+    <position x="200" y="200"/>  <!-- Matches transform -->
+  </metadata>
+  <!-- Children positioned around (0, 0) -->
+  <rect x="-50" y="-50" width="100" height="100"/>
+  <circle cx="0" cy="0" r="20"/>
+</g>
+\`\`\`
+
+**⚠️ IMPORTANT:**
+- **Don't mix transforms and absolute coordinates** - choose one approach
+- **Don't nest multiple transforms** - use a single transform on the group
+- **Keep it simple** - prefer absolute coordinates unless you have a specific reason for transforms
+
+### Complex Multi-Part Objects
+
+For objects with multiple children (like architecture diagrams, cartoon characters, etc.):
+
+**Example: Multi-part object (layered structure):**
+
+\`\`\`xml
+<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Layered Component">
+  <metadata>
+    <position x="300" y="200"/>  <!-- Center of entire structure -->
+  </metadata>
+  <!-- Background layer (centered at position) -->
+  <rect x="250" y="150" width="100" height="100" fill="#f0f0f0" stroke="#ccc"/>
+  <!-- Icon layer (near center) -->
+  <circle cx="300" cy="200" r="30" fill="#3b82f6"/>
+  <!-- Text layer (near center) -->
+  <text x="300" y="270" text-anchor="middle" font-size="12">Label</text>
+  <!-- All parts within ±50px of position (300, 200) -->
+</g>
+\`\`\`
+
+**Best practices for complex objects:**
+1. Design all parts with position in mind
+2. Calculate bounding box of ALL children
+3. Set position to bounding box center
+4. Verify all children are within ±20% of object size from position
+
 ### Supported Elements
 
 **Rectangles (boxes)** - MUST be wrapped in object container

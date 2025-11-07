@@ -146,7 +146,135 @@ export function validateSVG(svgContent: string): ValidationResult {
 		);
 	}
 
-	// 9. Sanitize SVG (remove dangerous content)
+	// 9. Check coordinate alignment (position metadata vs child elements)
+	// This prevents "weird dragging" behavior where objects stretch or move incorrectly
+	const misalignedObjects: string[] = [];
+
+	// Find all <g data-object-type="object"> elements
+	const objectGroupRegex = /<g[^>]*id="([^"]*)"[^>]*data-object-type="object"[^>]*>([\s\S]*?)<\/g>/gi;
+	let objectMatch;
+
+	while ((objectMatch = objectGroupRegex.exec(svgContent)) !== null) {
+		const objectId = objectMatch[1];
+		const objectContent = objectMatch[2];
+
+		// Extract position metadata
+		const positionMatch = objectContent.match(/<position\s+x="([^"]+)"\s+y="([^"]+)"/i);
+		if (!positionMatch) continue;
+
+		const posX = parseFloat(positionMatch[1]);
+		const posY = parseFloat(positionMatch[2]);
+
+		if (isNaN(posX) || isNaN(posY)) continue;
+
+		// Calculate bounding box of child elements
+		let minX = Infinity, maxX = -Infinity;
+		let minY = Infinity, maxY = -Infinity;
+		let childCount = 0;
+
+		// Extract coordinates from common SVG elements
+		const coordinatePatterns = [
+			// rect: x, y, width, height
+			{ regex: /<rect[^>]*x="([^"]+)"[^>]*y="([^"]+)"[^>]*width="([^"]+)"[^>]*height="([^"]+)"/gi,
+			  extract: (m: RegExpExecArray) => {
+				const x = parseFloat(m[1]), y = parseFloat(m[2]);
+				const w = parseFloat(m[3]), h = parseFloat(m[4]);
+				return [{ x, y }, { x: x + w, y: y + h }];
+			  }
+			},
+			// circle: cx, cy, r
+			{ regex: /<circle[^>]*cx="([^"]+)"[^>]*cy="([^"]+)"[^>]*r="([^"]+)"/gi,
+			  extract: (m: RegExpExecArray) => {
+				const cx = parseFloat(m[1]), cy = parseFloat(m[2]), r = parseFloat(m[3]);
+				return [{ x: cx - r, y: cy - r }, { x: cx + r, y: cy + r }];
+			  }
+			},
+			// ellipse: cx, cy, rx, ry
+			{ regex: /<ellipse[^>]*cx="([^"]+)"[^>]*cy="([^"]+)"[^>]*rx="([^"]+)"[^>]*ry="([^"]+)"/gi,
+			  extract: (m: RegExpExecArray) => {
+				const cx = parseFloat(m[1]), cy = parseFloat(m[2]);
+				const rx = parseFloat(m[3]), ry = parseFloat(m[4]);
+				return [{ x: cx - rx, y: cy - ry }, { x: cx + rx, y: cy + ry }];
+			  }
+			},
+			// line: x1, y1, x2, y2
+			{ regex: /<line[^>]*x1="([^"]+)"[^>]*y1="([^"]+)"[^>]*x2="([^"]+)"[^>]*y2="([^"]+)"/gi,
+			  extract: (m: RegExpExecArray) => [
+				{ x: parseFloat(m[1]), y: parseFloat(m[2]) },
+				{ x: parseFloat(m[3]), y: parseFloat(m[4]) }
+			  ]
+			},
+			// text: x, y
+			{ regex: /<text[^>]*x="([^"]+)"[^>]*y="([^"]+)"/gi,
+			  extract: (m: RegExpExecArray) => [{ x: parseFloat(m[1]), y: parseFloat(m[2]) }]
+			}
+		];
+
+		for (const pattern of coordinatePatterns) {
+			let match;
+			while ((match = pattern.regex.exec(objectContent)) !== null) {
+				const points = pattern.extract(match);
+				for (const point of points) {
+					if (!isNaN(point.x) && !isNaN(point.y)) {
+						minX = Math.min(minX, point.x);
+						maxX = Math.max(maxX, point.x);
+						minY = Math.min(minY, point.y);
+						maxY = Math.max(maxY, point.y);
+						childCount++;
+					}
+				}
+			}
+		}
+
+		// Skip if no children found
+		if (childCount === 0 || !isFinite(minX)) continue;
+
+		// Calculate geometric center of bounding box
+		const centerX = (minX + maxX) / 2;
+		const centerY = (minY + maxY) / 2;
+
+		// Calculate offset from position metadata
+		const offsetX = Math.abs(posX - centerX);
+		const offsetY = Math.abs(posY - centerY);
+		const maxOffset = Math.max(offsetX, offsetY);
+
+		// Calculate bounding box dimensions for threshold adjustment
+		const bboxWidth = maxX - minX;
+		const bboxHeight = maxY - minY;
+		const bboxSize = Math.max(bboxWidth, bboxHeight);
+
+		// Dynamic threshold: 20% of object size, min 50px, max 300px
+		const threshold = Math.max(50, Math.min(300, bboxSize * 0.2));
+
+		if (maxOffset > threshold) {
+			misalignedObjects.push(
+				`${objectId} (offset: ${Math.round(maxOffset)}px, ` +
+				`position: [${Math.round(posX)}, ${Math.round(posY)}], ` +
+				`center: [${Math.round(centerX)}, ${Math.round(centerY)}])`
+			);
+
+			// Critical error if offset is extreme (>1000px)
+			if (maxOffset > 1000) {
+				errors.push(
+					`CRITICAL: Object "${objectId}" has extreme coordinate misalignment (${Math.round(maxOffset)}px offset). ` +
+					`This WILL cause severe dragging issues. Position metadata is at (${Math.round(posX)}, ${Math.round(posY)}) ` +
+					`but child elements are centered around (${Math.round(centerX)}, ${Math.round(centerY)}). ` +
+					`Update position to match child center.`
+				);
+			}
+		}
+	}
+
+	if (misalignedObjects.length > 0) {
+		warnings.push(
+			`Found ${misalignedObjects.length} object(s) with position metadata NOT aligned to child element centers. ` +
+			`This may cause "weird dragging" or stretching behavior. ` +
+			`The <position> should be at the geometric center of all children. ` +
+			`Misaligned: ${misalignedObjects.slice(0, 3).join('; ')}${misalignedObjects.length > 3 ? '...' : ''}`
+		);
+	}
+
+	// 10. Sanitize SVG (remove dangerous content)
 	let sanitized = svgContent;
 
 	// Remove script tags
@@ -158,14 +286,14 @@ export function validateSVG(svgContent: string): ValidationResult {
 	// Remove javascript: protocols
 	sanitized = sanitized.replace(/javascript:[^"'\s]*/gi, 'about:blank');
 
-	// 9. Size validation
+	// 11. Size validation
 	const sizeInBytes = new Blob([svgContent]).size;
 	const maxSize = 10 * 1024 * 1024; // 10MB
 	if (sizeInBytes > maxSize) {
 		errors.push(`SVG too large: ${(sizeInBytes / 1024 / 1024).toFixed(2)}MB (max: ${maxSize / 1024 / 1024}MB)`);
 	}
 
-	// 10. Element count validation (prevent DoS)
+	// 12. Element count validation (prevent DoS)
 	const elementCount = (svgContent.match(/<\w+[^>]*>/g) || []).length;
 	const maxElements = 10000;
 	if (elementCount > maxElements) {
