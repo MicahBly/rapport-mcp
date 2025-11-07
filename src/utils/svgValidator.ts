@@ -266,11 +266,24 @@ export function validateSVG(svgContent: string): ValidationResult {
 	}
 
 	if (misalignedObjects.length > 0) {
+		// Build auto-fix suggestions
+		const autoFixHints = misalignedObjects.slice(0, 3).map(obj => {
+			const match = obj.match(/position: \[([^\]]+)\], center: \[([^\]]+)\]/);
+			if (match) {
+				const center = match[2];
+				const objId = obj.split(' ')[0];
+				return `Update ${objId}: <position x="${center.split(', ')[0]}" y="${center.split(', ')[1]}"/>`;
+			}
+			return obj;
+		});
+
 		warnings.push(
 			`Found ${misalignedObjects.length} object(s) with position metadata NOT aligned to child element centers. ` +
-			`This may cause "weird dragging" or stretching behavior. ` +
-			`The <position> should be at the geometric center of all children. ` +
-			`Misaligned: ${misalignedObjects.slice(0, 3).join('; ')}${misalignedObjects.length > 3 ? '...' : ''}`
+			`This WILL cause "weird dragging" or stretching behavior! ` +
+			`\n\nFIX: Update <position> to match the geometric center of children:\n` +
+			autoFixHints.join('\n') +
+			`${misalignedObjects.length > 3 ? '\n... and ' + (misalignedObjects.length - 3) + ' more' : ''}\n\n` +
+			`Calculation: position.x = (minX + maxX) / 2, position.y = (minY + maxY) / 2`
 		);
 	}
 

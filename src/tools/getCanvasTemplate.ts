@@ -22,7 +22,12 @@ export async function getCanvasTemplate(args: GetCanvasTemplateArgs) {
 
 	const template = `# Rapport Canvas Editing Guide
 
-⚠️ **CRITICAL REQUIREMENT**: ALL elements (rect, circle, line, path, text) MUST be wrapped in \`<g data-object-type="object">\` containers with metadata. Elements without this wrapper will NOT be selectable or editable! See "Object Wrapper Structure" section below.
+⚠️ **CRITICAL REQUIREMENTS**:
+1. **ALL elements** (rect, circle, line, path, text) MUST be wrapped in \`<g data-object-type="object">\` containers with metadata
+2. **Position metadata MUST match child coordinates** - Calculate geometric center of all children and set position there
+3. **Z-Index/Stacking Order** - Place background/container elements FIRST in SVG, then content elements (SVG renders in document order)
+
+Elements without proper wrapping, alignment, or ordering will cause selection, dragging, and visual stacking issues!
 
 ## Current Canvas
 \`\`\`xml
@@ -166,6 +171,72 @@ For objects with multiple children (like architecture diagrams, cartoon characte
 2. Calculate bounding box of ALL children
 3. Set position to bounding box center
 4. Verify all children are within ±20% of object size from position
+
+### CRITICAL: Z-Index and Stacking Order
+
+**SVG renders elements in document order** - elements that appear later in the SVG are rendered on top of earlier elements. This is crucial for layered diagrams!
+
+**Problem: Items hiding behind backgrounds**
+
+When creating architecture diagrams or layered UIs with background rectangles, you MUST order elements carefully:
+
+**❌ BAD Example (backgrounds hide dragged items):**
+
+\`\`\`xml
+<svg>
+  <g data-object-name="Title">...</g>
+
+  <!-- Background layer 1 -->
+  <g data-object-name="Frontend Layer Background">
+    <rect width="1400" height="160" fill="#1e3a5f"/>
+  </g>
+
+  <!-- Content items on layer 1 -->
+  <g data-object-name="Component A">...</g>  <!-- Can be dragged BEHIND layers below! -->
+
+  <!-- Background layer 2 (renders AFTER Component A) -->
+  <g data-object-name="Backend Layer Background">
+    <rect width="1400" height="180" fill="#5a1e1e"/>
+  </g>
+
+  <!-- This background will COVER Component A when dragged -->
+</svg>
+\`\`\`
+
+**✅ GOOD Example (all backgrounds first, then content on top):**
+
+\`\`\`xml
+<svg>
+  <!-- ALL background layers FIRST (at the back) -->
+  <g data-object-name="Frontend Layer Background">
+    <rect width="1400" height="160" fill="#1e3a5f"/>
+  </g>
+
+  <g data-object-name="API Layer Background">
+    <rect width="1400" height="120" fill="#1e5a3a"/>
+  </g>
+
+  <g data-object-name="Backend Layer Background">
+    <rect width="1400" height="180" fill="#5a1e1e"/>
+  </g>
+
+  <!-- ALL content elements AFTER (on top) -->
+  <g data-object-name="Title">...</g>
+  <g data-object-name="Component A">...</g>
+  <g data-object-name="Component B">...</g>
+  <g data-object-name="Component C">...</g>
+</svg>
+\`\`\`
+
+**Ordering Guidelines:**
+
+1. **Markers and Definitions** - Always in \`<defs>\` at the very start (don't wrap in object containers)
+2. **Background layers** - Large container rectangles, backgrounds, borders
+3. **Connecting elements** - Lines, arrows between components
+4. **Content elements** - Individual components, boxes, text, icons
+5. **Foreground/Overlay elements** - Floating UI, highlights, tooltips
+
+**Testing**: Mentally visualize the document as a stack of transparencies - items at the top of the SVG are at the bottom of the visual stack.
 
 ### Supported Elements
 
