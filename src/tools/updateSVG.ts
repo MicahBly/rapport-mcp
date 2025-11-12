@@ -1,4 +1,4 @@
-import { supabase, getUserId } from '../db.js';
+import { apiRequest, getUserId } from '../apiClient.js';
 import { validateSVG, getSVGStats } from '../utils/svgValidator.js';
 
 export interface UpdateSVGArgs {
@@ -35,30 +35,21 @@ export async function updateSVG(args: UpdateSVGArgs) {
 	// Get stats for confirmation message
 	const stats = getSVGStats(svgToSave);
 
-	// First, get the user's project to update
-	const { data: project, error: fetchError } = await supabase
-		.from('projects')
-		.select('id')
-		.eq('user_id', userId)
-		.single();
+	// First, get the user's project ID
+	const projectResponse = await apiRequest(`/api/projects/recent?userId=${userId}`);
 
-	if (fetchError) {
-		throw new Error(`Failed to find your project: ${fetchError.message}`);
+	if (!projectResponse.data) {
+		throw new Error('Failed to find your project');
 	}
 
-	// Update the project
-	const { error } = await supabase
-		.from('projects')
-		.update({
-			svg_document: svgToSave,
-			updated_at: new Date().toISOString()
+	// Update via API endpoint
+	await apiRequest('/api/svg/save', {
+		method: 'POST',
+		body: JSON.stringify({
+			projectId: projectResponse.data.id,
+			svgDocument: svgToSave
 		})
-		.eq('id', project.id)
-		.eq('user_id', userId);
-
-	if (error) {
-		throw new Error(`Failed to update SVG: ${error.message}`);
-	}
+	});
 
 	// Build success message
 	const warningText = validation.warnings.length > 0

@@ -1,20 +1,18 @@
-import { supabase, getUserId } from '../db.js';
+import { apiRequest, getUserId } from '../apiClient.js';
 
 export interface GetCanvasTemplateArgs {}
 
 export async function getCanvasTemplate(args: GetCanvasTemplateArgs) {
 	const userId = getUserId();
 
-	// Get current canvas state
-	const { data, error } = await supabase
-		.from('projects')
-		.select('id, svg_document, title, pins')
-		.eq('user_id', userId)
-		.single();
+	// Get current canvas state via API
+	const response = await apiRequest(`/api/projects/recent?userId=${userId}`);
 
-	if (error) {
-		throw new Error(`Project not found for your account - ${error.message}`);
+	if (!response.data) {
+		throw new Error('Project not found for your account');
 	}
+
+	const data = response.data;
 
 	// Extract viewBox from current canvas
 	const viewBoxMatch = data.svg_document.match(/viewBox="([^"]+)"/);

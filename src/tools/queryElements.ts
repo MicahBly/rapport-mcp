@@ -1,4 +1,4 @@
-import { supabase, getUserId } from '../db.js';
+import { apiRequest, getUserId } from '../apiClient.js';
 import { DOMParser } from '@xmldom/xmldom';
 
 export interface QueryElementsArgs {
@@ -8,15 +8,14 @@ export interface QueryElementsArgs {
 export async function queryElements(args: QueryElementsArgs) {
 	const userId = getUserId();
 
-	const { data, error } = await supabase
-		.from('projects')
-		.select('svg_document')
-		.eq('user_id', userId)
-		.single();
+	// Get canvas via API
+	const response = await apiRequest(`/api/projects/recent?userId=${userId}`);
 
-	if (error) {
-		throw new Error(`Project not found for your account - ${error.message}`);
+	if (!response.data) {
+		throw new Error('Project not found for your account');
 	}
+
+	const data = response.data;
 
 	const parser = new DOMParser();
 	const doc = parser.parseFromString(data.svg_document, 'image/svg+xml');

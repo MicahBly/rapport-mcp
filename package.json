@@ -33,7 +33,6 @@
 	"homepage": "https://github.com/MicahBly/rapport-mcp#readme",
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.0.4",
-		"@supabase/supabase-js": "^2.39.7",
 		"@xmldom/xmldom": "^0.8.10",
 		"dotenv": "^16.6.1"
 	},

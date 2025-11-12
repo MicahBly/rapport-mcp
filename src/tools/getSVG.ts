@@ -1,4 +1,4 @@
-import { supabase, getUserId } from '../db.js';
+import { apiRequest, getUserId } from '../apiClient.js';
 
 export interface GetSVGArgs {
 	include_metadata?: boolean;
@@ -7,15 +7,14 @@ export interface GetSVGArgs {
 export async function getSVG(args: GetSVGArgs) {
 	const userId = getUserId();
 
-	const { data, error } = await supabase
-		.from('projects')
-		.select('id, svg_document, title, pins, updated_at, is_public, user_id')
-		.eq('user_id', userId)
-		.single();
+	// Call the frontend API endpoint
+	const response = await apiRequest(`/api/projects/recent?userId=${userId}`);
 
-	if (error) {
-		throw new Error(`Project not found for your account - ${error.message}`);
+	if (!response.data) {
+		throw new Error('Project not found for your account');
 	}
+
+	const data = response.data;
 
 	// Parse SVG to get element count and canvas info
 	const elementCount = (data.svg_document.match(/<(rect|circle|path|line|text|ellipse|polygon|polyline)/g) || []).length;
