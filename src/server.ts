@@ -15,6 +15,7 @@ import { getSVG } from './tools/getSVG.js';
 import { updateSVG } from './tools/updateSVG.js';
 import { queryElements } from './tools/queryElements.js';
 import { getCanvasTemplate } from './tools/getCanvasTemplate.js';
+import { exportOpenAPI } from './tools/exportOpenAPI.js';
 
 const server = new Server(
 	{
@@ -87,6 +88,33 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 				},
 				required: ['selector']
 			}
+		},
+		{
+			name: 'export_openapi',
+			description: 'Export API endpoints from your canvas as an OpenAPI specification. Scans the canvas for API-related semantic elements (API endpoints, gateways, etc.) and generates a complete OpenAPI 3.0/3.1 specification with paths, methods, schemas, and security requirements. Perfect for generating API documentation from architecture diagrams.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					format: {
+						type: 'string',
+						enum: ['json', 'yaml'],
+						description: 'Output format (default: json)',
+						default: 'json'
+					},
+					version: {
+						type: 'string',
+						enum: ['3.0', '3.1'],
+						description: 'OpenAPI version (default: 3.0)',
+						default: '3.0'
+					},
+					include_examples: {
+						type: 'boolean',
+						description: 'Include example requests/responses if defined (default: true)',
+						default: true
+					}
+				},
+				required: []
+			}
 		}
 	]
 }));
@@ -104,6 +132,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 				return await updateSVG(args as any);
 			case 'query_elements':
 				return await queryElements(args as any);
+			case 'export_openapi':
+				return await exportOpenAPI(args as any);
 			default:
 				throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
 		}
