@@ -38,7 +38,7 @@ export async function updateSVG(args: UpdateSVGArgs) {
 	// First, get the user's project ID
 	const projectResponse = await apiRequest(`/api/projects/recent?userId=${userId}`);
 
-	if (!projectResponse.data) {
+	if (!projectResponse.project) {
 		throw new Error('Failed to find your project');
 	}
 
@@ -46,7 +46,7 @@ export async function updateSVG(args: UpdateSVGArgs) {
 	await apiRequest('/api/svg/save', {
 		method: 'POST',
 		body: JSON.stringify({
-			projectId: projectResponse.data.id,
+			projectId: projectResponse.project.id,
 			svgDocument: svgToSave
 		})
 	});
