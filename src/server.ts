@@ -79,11 +79,6 @@ Use level=3 on FIRST interaction to learn format, then level=2 for subsequent ed
 					svg_document: {
 						type: 'string',
 						description: 'The complete, valid SVG document as a string. Must include <svg> wrapper with xmlns and viewBox attributes. All elements must have unique IDs and appropriate data-type attributes.'
-					},
-					skip_validation: {
-						type: 'boolean',
-						description: 'Skip security validation (NOT RECOMMENDED - use only for emergency overrides)',
-						default: false
 					}
 				},
 				required: ['svg_document']

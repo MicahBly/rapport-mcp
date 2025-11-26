@@ -1,8 +1,24 @@
 import { apiRequest, getUserId } from '../apiClient.js';
-import { DOMParser } from '@xmldom/xmldom';
+import { JSDOM } from 'jsdom';
 
 export interface QueryElementsArgs {
 	selector: string;
+}
+
+// XXE protection: reject documents with DTD declarations or entity definitions
+function validateXMLSafety(content: string): void {
+	const dangerousPatterns = [
+		/<!DOCTYPE/i,
+		/<!ENTITY/i,
+		/SYSTEM\s+["']/i,
+		/PUBLIC\s+["']/i,
+	];
+
+	for (const pattern of dangerousPatterns) {
+		if (pattern.test(content)) {
+			throw new Error('SVG document contains potentially dangerous XML declarations');
+		}
+	}
 }
 
 export async function queryElements(args: QueryElementsArgs) {
@@ -17,8 +33,12 @@ export async function queryElements(args: QueryElementsArgs) {
 
 	const data = response.project;
 
-	const parser = new DOMParser();
-	const doc = parser.parseFromString(data.svg_document, 'image/svg+xml');
+	// XXE protection: validate before parsing
+	validateXMLSafety(data.svg_document);
+
+	// Use JSDOM for safer XML parsing (no XXE by default)
+	const dom = new JSDOM(data.svg_document, { contentType: 'image/svg+xml' });
+	const doc = dom.window.document;
 
 	// Simple querySelector implementation - just find by tag or ID
 	let elements: Element[] = [];

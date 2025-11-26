@@ -33,8 +33,12 @@
 	"homepage": "https://github.com/MicahBly/rapport-mcp#readme",
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.0.4",
+		"@types/dompurify": "^3.0.5",
+		"@types/jsdom": "^27.0.0",
 		"@xmldom/xmldom": "^0.8.10",
-		"dotenv": "^16.6.1"
+		"dompurify": "^3.3.0",
+		"dotenv": "^16.6.1",
+		"jsdom": "^27.2.0"
 	},
 	"devDependencies": {
 		"@types/node": "^20.11.16",

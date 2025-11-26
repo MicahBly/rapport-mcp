@@ -3,7 +3,6 @@ import { validateSVG, getSVGStats } from '../utils/svgValidator.js';
 
 export interface UpdateSVGArgs {
 	svg_document: string;
-	skip_validation?: boolean; // For emergency overrides (use with caution)
 }
 
 export async function updateSVG(args: UpdateSVGArgs) {
@@ -12,7 +11,7 @@ export async function updateSVG(args: UpdateSVGArgs) {
 	// Comprehensive validation
 	const validation = validateSVG(args.svg_document);
 
-	if (!validation.valid && !args.skip_validation) {
+	if (!validation.valid) {
 		const errorMessage = [
 			'❌ SVG validation failed:',
 			'',
@@ -22,15 +21,14 @@ export async function updateSVG(args: UpdateSVGArgs) {
 			validation.warnings.length > 0 ? '**Warnings:**' : '',
 			...validation.warnings.map(w => `- ${w}`),
 			'',
-			'Please fix these issues and try again.',
-			'If you believe this is a false positive, you can use skip_validation: true (NOT RECOMMENDED)'
+			'Please fix these issues and try again.'
 		].filter(line => line !== '').join('\n');
 
 		throw new Error(errorMessage);
 	}
 
-	// Use sanitized version if validation passed
-	const svgToSave = validation.sanitized || args.svg_document;
+	// Use sanitized version
+	const svgToSave = validation.sanitized as string;
 
 	// Get stats for confirmation message
 	const stats = getSVGStats(svgToSave);

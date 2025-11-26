@@ -1,10 +1,26 @@
 import { apiRequest, getUserId } from '../apiClient.js';
-import { DOMParser } from '@xmldom/xmldom';
+import { JSDOM } from 'jsdom';
 
 export interface ExportOpenAPIArgs {
 	format?: 'json' | 'yaml';
 	version?: '3.0' | '3.1';
 	include_examples?: boolean;
+}
+
+// XXE protection: reject documents with DTD declarations or entity definitions
+function validateXMLSafety(content: string): void {
+	const dangerousPatterns = [
+		/<!DOCTYPE/i,
+		/<!ENTITY/i,
+		/SYSTEM\s+["']/i,
+		/PUBLIC\s+["']/i,
+	];
+
+	for (const pattern of dangerousPatterns) {
+		if (pattern.test(content)) {
+			throw new Error('SVG document contains potentially dangerous XML declarations');
+		}
+	}
 }
 
 interface APIEndpoint {
@@ -35,9 +51,12 @@ export async function exportOpenAPI(args: ExportOpenAPIArgs) {
 	const data = response.project;
 	const svgDocument = data.svg_document;
 
-	// Parse SVG to find API-related semantic elements
-	const parser = new DOMParser();
-	const doc = parser.parseFromString(svgDocument, 'image/svg+xml');
+	// XXE protection: validate before parsing
+	validateXMLSafety(svgDocument);
+
+	// Use JSDOM for safer XML parsing (no XXE by default)
+	const dom = new JSDOM(svgDocument, { contentType: 'image/svg+xml' });
+	const doc = dom.window.document;
 
 	// Query all objects with semantic types
 	const objects = doc.querySelectorAll('[data-semantic-type]');

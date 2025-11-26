@@ -1,0 +1,310 @@
+================================================================================
+                    SECURITY AUDIT - VULNERABILITIES LIST
+================================================================================
+
+Project: rapport-mcp v1.4.0
+Audit Date: 2025-11-13
+Total Vulnerabilities: 9
+
+================================================================================
+CRITICAL/HIGH SEVERITY VULNERABILITIES (3)
+================================================================================
+
+VULNERABILITY #1: INSECURE FILE PERMISSIONS ON AUTHENTICATION TOKENS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Severity: HIGH (CRITICAL)
+Type: Insecure File Storage / Information Disclosure
+Location: /home/kruger/projects/rapport-mcp/src/cli.ts (lines 37-41)
+CWE: CWE-280 (Improper Handling of Insufficient Permissions or Privileges)
+
+Description:
+The saveConfig() function creates authentication token files with default
+permissions (664) readable by any user on the system. This allows any local
+user to steal authentication tokens and access Rapport projects.
+
+Current behavior:
+  - fs.mkdirSync(CONFIG_DIR, { recursive: true }) // No mode specified
+  - fs.writeFileSync(CONFIG_FILE, ...) // No mode specified
+
+Impact:
+  - Any system user can read authentication tokens
+  - Token compromise allows unauthorized Rapport access
+  - Refresh tokens can be used to generate new access tokens
+  - Local privilege escalation vector
+
+Fix Time: 5 minutes
+Priority: IMPLEMENT IMMEDIATELY
+Fixed: NO
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+VULNERABILITY #2: SSRF VULNERABILITY IN API ENDPOINT CONSTRUCTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Severity: HIGH
+Type: Server-Side Request Forgery (SSRF)
+Location: /home/kruger/projects/rapport-mcp/src/apiClient.ts (lines 44-55)
+CWE: CWE-918 (Server-Side Request Forgery)
+
+Description:
+The apiRequest() function concatenates endpoint parameter directly without
+validation. An attacker could craft malicious endpoint strings to make
+requests to unintended URLs using the user's authentication token.
+
+Vulnerable code:
+  const response = await fetch(`${baseUrl}${endpoint}`, {...})
+
+Impact:
+  - Attackers can craft malicious API requests
+  - Authentication token would be sent with crafted requests
+  - Could access internal APIs or unauthorized resources
+  - Potential access to internal system endpoints
+
+Attack Examples:
+  - Endpoint: "//internal-admin.local/api/admin"
+  - Endpoint: "/api/admin/create-user?privilege=admin"
+
+Fix Time: 15 minutes
+Priority: IMPLEMENT IMMEDIATELY
+Fixed: NO
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+VULNERABILITY #3: POTENTIAL XXE VULNERABILITY IN XML PARSER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Severity: HIGH
+Type: XML External Entity (XXE) Injection
+Location: /home/kruger/projects/rapport-mcp/src/tools/queryElements.ts (lines 20-21)
+CWE: CWE-611 (Improper Restriction of XML External Entity Reference)
+
+Description:
+The DOMParser is used without explicit XXE protection configuration to parse
+user-supplied SVG content. While SVG validation checks for some risks, the
+parser itself could be vulnerable depending on configuration and version.
+
+Vulnerable code:
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(data.svg_document, 'image/svg+xml');
+
+Risk Factors:
+  - @xmldom/xmldom version 0.8.11 used
+  - No explicit XXE protection configuration
+  - Parser processes potentially malicious SVG content
+
+Impact:
+  - Information disclosure through XXE attacks
+  - Potential access to local files on server
+  - Denial of service (billion laughs attack)
+  - SSRF through XXE external entity references
+
+Fix Time: 10 minutes
+Priority: IMPLEMENT SOON
+Fixed: NO
+
+================================================================================
+MEDIUM SEVERITY VULNERABILITIES (4)
+================================================================================
+
+VULNERABILITY #4: SECURITY VALIDATION BYPASS VIA skip_validation FLAG
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Severity: MEDIUM
+Type: Security Control Bypass
+Location: src/server.ts (lines 67-71), src/tools/updateSVG.ts (line 6)
+CWE: CWE-434 (Unrestricted Upload of File with Dangerous Type)
+
+Description:
+A skip_validation parameter exists that allows bypassing all security checks
+when saving SVG content. This undermines the entire security validation layer.
+
+Vulnerable code:
+  skip_validation: {
+    type: 'boolean',
+    description: 'Skip security validation (NOT RECOMMENDED - use only for emergency overrides)',
+    default: false
+  }
+
+  if (!validation.valid && !args.skip_validation) {
+    // Validation error thrown
+  }
+
+Impact:
+  - Allows saving malicious SVG content with scripts
+  - Bypasses event handler detection
+  - Bypasses dangerous element blocking
+  - Bypasses size and element count limits
+  - XSS when malicious SVG is rendered
+
+Fix Time: 10 minutes
+Priority: IMPLEMENT IMMEDIATELY
+Fixed: NO
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+VULNERABILITY #5: INCOMPLETE SVG VALIDATION - ENCODING BYPASSES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Severity: MEDIUM
+Type: XSS / Injection Vulnerability
+Location: src/utils/svgValidator.ts (lines 28-44)
+CWE: CWE-79 (Improper Neutralization of Input During Web Page Generation)
+
+Description:
+The SVG validation regex patterns don't catch all dangerous content variations:
+1. Animation-based XSS (animate/set elements with event attributes)
+2. HTML entity encoding bypasses (&#99;lick)
+3. Hex encoding variations (on\x63lick)
+4. Missing protocol variants (vbscript:)
+
+Vulnerable patterns:
+  - <animate attributeName="onclick"> can set event handlers
+  - <set attributeName="onload"> can set event handlers
+  - Encoded protocols: &#58; instead of :
+  - Alternative protocols: vbscript: instead of javascript:
+
+Impact:
+  - Stored XSS through malicious SVG
+  - Cross-site scripting when SVG is rendered
+  - Potential JavaScript execution in browser
+  - Attacks not caught by current validation
+
+Fix Time: 20 minutes
+Priority: IMPLEMENT SOON
+Fixed: NO
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+VULNERABILITY #6: SENSITIVE INFORMATION IN ERROR MESSAGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Severity: MEDIUM
+Type: Information Disclosure
+Location: src/apiClient.ts (line 59)
+CWE: CWE-209 (Information Exposure Through an Error Message)
+
+Description:
+API error responses are returned directly to users without sanitization,
+potentially leaking sensitive information about the backend system.
+
+Vulnerable code:
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+Impact:
+  - Backend error details exposed
+  - Internal API structure revealed
+  - Implementation details disclosed
+  - Aids attackers in reconnaissance
+
+Fix Time: 10 minutes
+Priority: IMPLEMENT SOON
+Fixed: NO
+
+================================================================================
+LOW SEVERITY VULNERABILITIES (2)
+================================================================================
+
+VULNERABILITY #7: MISSING HTTPS ENFORCEMENT ON API URLS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Severity: MEDIUM
+Type: Insecure Transport / Man-in-the-Middle
+Location: src/apiClient.ts (line 45)
+CWE: CWE-295 (Improper Certificate Validation)
+
+Description:
+The RAPPORT_API_URL environment variable is not validated to ensure HTTPS.
+If set to HTTP, authentication tokens would be sent over unencrypted connection.
+
+Vulnerable code:
+  const baseUrl = process.env.RAPPORT_API_URL || 'https://rapport.dev';
+  // No validation that baseUrl uses HTTPS
+
+Impact:
+  - Credentials transmitted over unencrypted HTTP if env var set to http://
+  - Man-in-the-middle attack vulnerability
+  - Token interception possible
+  - Network eavesdropping attack vector
+
+Fix Time: 10 minutes
+Priority: IMPLEMENT LATER
+Fixed: NO
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+VULNERABILITY #8: NO RATE LIMITING ON AUTHENTICATION POLLING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Severity: LOW
+Type: Denial of Service / Timing Attack
+Location: src/cli.ts (lines 99-135)
+CWE: CWE-307 (Improper Restriction of Rendered UI Layers or Frames)
+
+Description:
+Authentication polling uses fixed 2-second interval without exponential backoff.
+This allows 150 requests in 5 minutes with no rate limiting.
+
+Current behavior:
+  const POLL_INTERVAL = 2000; // Fixed 2 seconds
+  while (Date.now() - startTime < POLL_TIMEOUT) {
+    // Poll every 2 seconds
+    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
+  }
+
+Impact:
+  - Potential brute force attacks on session tokens
+  - DoS attack vector (excessive polling)
+  - Timing attacks possible
+  - Server load from many simultaneous authentications
+
+Fix Time: 15 minutes
+Priority: IMPLEMENT LATER
+Fixed: NO
+
+================================================================================
+LOW SEVERITY - NOT VULNERABILITIES (Positive Finding)
+================================================================================
+
+FINDING #9: INCOMPLETE SELECTOR VALIDATION (LOW IMPACT)
+────────────────────────────────────────────────────────────────────────────
+Severity: LOW (Limited Impact)
+Type: Input Validation
+Location: src/tools/queryElements.ts (lines 26-45)
+
+Status: LOW IMPACT - No SQL database, limited attack surface
+Recommendation: Monitor for edge cases with special characters
+
+================================================================================
+POSITIVE SECURITY FINDINGS
+================================================================================
+
+✓ Comprehensive SVG validation with 12+ security checks
+✓ Proper Bearer token authentication
+✓ Input sanitization for scripts and dangerous elements
+✓ Size limits (10MB) preventing DoS attacks
+✓ Element count limits (10,000) preventing resource exhaustion
+✓ No eval() or dynamic code execution
+✓ TypeScript strict mode enabled
+✓ Cryptographically secure randomUUID for session IDs
+✓ No hardcoded secrets in source code
+✓ Safe XML parsing library (@xmldom/xmldom)
+✓ Zero known vulnerabilities in npm dependencies
+✓ Proper error handling with try/catch blocks
+
+================================================================================
+REMEDIATION PRIORITY SCHEDULE
+================================================================================
+
+IMMEDIATE (Week 1 - 30 minutes total):
+  [ ] Vulnerability #1: File permissions (5 min)
+  [ ] Vulnerability #2: SSRF protection (15 min)
+  [ ] Vulnerability #4: Remove skip_validation (10 min)
+
+HIGH (Week 2 - 40 minutes total):
+  [ ] Vulnerability #3: XXE protection (10 min)
+  [ ] Vulnerability #5: SVG validation (20 min)
+  [ ] Vulnerability #6: Error sanitization (10 min)
+
+STANDARD (Week 3-4 - 25 minutes total):
+  [ ] Vulnerability #7: HTTPS enforcement (10 min)
+  [ ] Vulnerability #8: Rate limiting (15 min)
+
+================================================================================
+END OF VULNERABILITIES LIST
+================================================================================

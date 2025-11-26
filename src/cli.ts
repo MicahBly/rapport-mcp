@@ -11,8 +11,10 @@ const __dirname = path.dirname(__filename);
 
 const CONFIG_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '', '.rapport-mcp');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
-const POLL_INTERVAL = 2000; // 2 seconds
 const POLL_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+const INITIAL_POLL_DELAY = 1000; // Start at 1 second
+const MAX_POLL_DELAY = 10000; // Cap at 10 seconds
+const BACKOFF_MULTIPLIER = 1.5; // Exponential factor
 
 interface Config {
 	access_token?: string;
@@ -36,9 +38,9 @@ function loadConfig(): Config {
 
 function saveConfig(config: Config) {
 	if (!fs.existsSync(CONFIG_DIR)) {
-		fs.mkdirSync(CONFIG_DIR, { recursive: true });
+		fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
 	}
-	fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+	fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), { mode: 0o600 });
 }
 
 async function pollForAuth(sessionId: string): Promise<PollResponse> {
@@ -92,9 +94,16 @@ async function login() {
 	console.log('⏳ Waiting for authentication...');
 	console.log('   (Complete the authentication in your browser)\n');
 
-	// Poll for authentication
+	// Poll for authentication with exponential backoff and jitter
 	const startTime = Date.now();
 	let attempts = 0;
+	let currentDelay = INITIAL_POLL_DELAY;
+
+	// Add jitter to prevent thundering herd (±20% randomization)
+	const addJitter = (delay: number): number => {
+		const jitter = delay * 0.2 * (Math.random() - 0.5) * 2;
+		return Math.round(delay + jitter);
+	};
 
 	while (Date.now() - startTime < POLL_TIMEOUT) {
 		attempts++;
@@ -120,17 +129,22 @@ async function login() {
 				process.exit(1);
 			}
 
-			// Still pending, wait before next poll
-			if (attempts % 10 === 0) {
-				// Show progress every 20 seconds (10 attempts * 2 seconds)
+			// Still pending - apply exponential backoff with jitter
+			if (attempts % 5 === 0) {
 				console.log(`   Still waiting... (${Math.floor((Date.now() - startTime) / 1000)}s elapsed)`);
 			}
 
-			await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
+			const delayWithJitter = addJitter(currentDelay);
+			await new Promise(resolve => setTimeout(resolve, delayWithJitter));
+
+			// Increase delay for next iteration (exponential backoff)
+			currentDelay = Math.min(currentDelay * BACKOFF_MULTIPLIER, MAX_POLL_DELAY);
 
 		} catch (error) {
-			// On error, wait a bit and retry
-			await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
+			// On error, apply larger backoff
+			currentDelay = Math.min(currentDelay * 2, MAX_POLL_DELAY);
+			const delayWithJitter = addJitter(currentDelay);
+			await new Promise(resolve => setTimeout(resolve, delayWithJitter));
 		}
 	}
 
