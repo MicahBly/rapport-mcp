@@ -1,398 +1,161 @@
 import { apiRequest, getUserId } from '../apiClient.js';
 
-export interface GetCanvasTemplateArgs {}
+// Condensed instructions for level 3 (full) - reduced from ~1600 to ~400 tokens
+const CONDENSED_INSTRUCTIONS = `## SVG Canvas Editing Guide
 
-export async function getCanvasTemplate(args: GetCanvasTemplateArgs) {
-	const userId = getUserId();
+### Element Reference
+| Type | Key Attributes | data-type |
+|------|----------------|-----------|
+| rect | x, y, width, height, fill, stroke, rx | "box" |
+| circle | cx, cy, r, fill, stroke | "shape" data-shape="circle" |
+| line | x1, y1, x2, y2, stroke | "line" |
+| path | d, stroke, fill | "pencil" |
+| text | x, y, font-size, fill | "text" |
+| g | transform | "group" or data-object-type="object" |
 
-	// Get current canvas state via API
-	const response = await apiRequest(`/api/projects/recent?userId=${userId}`);
+### Object Wrapper Format
+\`\`\`xml
+<g id="obj-ID" data-object-type="object" data-object-name="Name">
+  <metadata><object-data xmlns=""><name>Name</name><position x="X" y="Y"/></object-data></metadata>
+  <!-- Child elements MUST be within ±200px of position point -->
+  <rect x="X-15" y="Y-15" width="30" height="30" fill="#color"/>
+</g>
+\`\`\`
 
-	if (!response.data) {
-		throw new Error('Project not found for your account');
+### Rules
+1. Unique IDs: \`element-timestamp-random\`
+2. Always include data-type attribute
+3. Preserve SVG wrapper and existing elements
+4. Position metadata = center of child elements bounding box
+5. No scripts, event handlers, or external URLs
+
+### Response Format
+Return ONLY the complete SVG document (no markdown), starting with \`<svg xmlns="..."\` and ending with \`</svg>\``;
+
+export interface GetCanvasTemplateArgs {
+	detail_level?: 0 | 1 | 2 | 3;
+}
+
+// Count elements in SVG
+function countElements(svgContent: string): number {
+	return (svgContent.match(/<(rect|circle|path|line|text|ellipse|polygon|polyline|g)/g) || []).length;
+}
+
+// Extract viewBox from SVG
+function extractViewBox(svgContent: string): string {
+	const match = svgContent.match(/viewBox="([^"]+)"/);
+	return match ? match[1] : '0 0 1920 1080';
+}
+
+// Get element type breakdown
+function getElementBreakdown(svgContent: string): Record<string, number> {
+	const types = ['rect', 'circle', 'path', 'line', 'text', 'ellipse', 'polygon', 'polyline', 'g'];
+	const breakdown: Record<string, number> = {};
+	for (const type of types) {
+		const regex = new RegExp(`<${type}[\\s>]`, 'g');
+		const count = (svgContent.match(regex) || []).length;
+		if (count > 0) breakdown[type] = count;
 	}
+	return breakdown;
+}
 
-	const data = response.data;
+// Count objects (groups with data-object-type)
+function countObjects(svgContent: string): number {
+	return (svgContent.match(/data-object-type="object"/g) || []).length;
+}
 
-	// Extract viewBox from current canvas
-	const viewBoxMatch = data.svg_document.match(/viewBox="([^"]+)"/);
-	const viewBox = viewBoxMatch ? viewBoxMatch[1] : '0 0 1920 1080';
+// Tier 0: Metadata only (~50-100 tokens)
+function buildMetadataResponse(data: any): string {
+	const metadata = {
+		project_id: data.id,
+		title: data.title,
+		element_count: countElements(data.svg_document),
+		object_count: countObjects(data.svg_document),
+		viewBox: extractViewBox(data.svg_document),
+		pins_count: data.pins?.length || 0,
+		last_updated: data.updated_at
+	};
+	return JSON.stringify(metadata, null, 2);
+}
 
-	const template = `# Rapport Canvas Editing Guide
+// Tier 1: Summary (~150-300 tokens)
+function buildSummaryResponse(data: any): string {
+	const metadata = {
+		project_id: data.id,
+		title: data.title,
+		element_count: countElements(data.svg_document),
+		object_count: countObjects(data.svg_document),
+		viewBox: extractViewBox(data.svg_document),
+		pins_count: data.pins?.length || 0,
+		last_updated: data.updated_at,
+		element_breakdown: getElementBreakdown(data.svg_document)
+	};
+	return `# Canvas Summary\n${JSON.stringify(metadata, null, 2)}`;
+}
 
-⚠️ **CRITICAL REQUIREMENTS**:
-1. **ALL elements** (rect, circle, line, path, text) MUST be wrapped in \`<g data-object-type="object">\` containers with metadata
-2. **Position metadata MUST match child coordinates** - Calculate geometric center of all children and set position there
-3. **Z-Index/Stacking Order** - Place background/container elements FIRST in SVG, then content elements (SVG renders in document order)
+// Tier 2: SVG only (~300-2000 tokens) - NEW DEFAULT
+function buildSVGResponse(data: any): string {
+	return data.svg_document;
+}
 
-Elements without proper wrapping, alignment, or ordering will cause selection, dragging, and visual stacking issues!
+// Tier 3: Full guide + SVG (~1500-3000 tokens)
+function buildFullResponse(data: any): string {
+	const viewBox = extractViewBox(data.svg_document);
+	return `${CONDENSED_INSTRUCTIONS}
 
 ## Current Canvas
 \`\`\`xml
 ${data.svg_document}
 \`\`\`
 
-## How to Modify the Canvas
-
-### Canvas Structure
-- The canvas is an SVG document with viewBox="${viewBox}"
-- All coordinates are in SVG space (not screen pixels)
-- The canvas has infinite scroll/zoom, so elements can be placed anywhere
-
-### CRITICAL: Object Wrapper Structure
-
-**ALL elements MUST be wrapped in an object container** for them to be interactive and editable. Use this structure:
-
-\`\`\`xml
-<g id="obj-unique-timestamp" data-object-type="object" data-object-name="Element Name">
-  <metadata>
-    <object-data xmlns="">
-      <name>Element Name</name>
-      <position x="100" y="100"/>
-    </object-data>
-  </metadata>
-  <!-- Your actual element here -->
-  <rect .../>
-</g>
-\`\`\`
-
-### CRITICAL: Coordinate Alignment Rules
-
-**The \`<position>\` metadata MUST align with the actual child element coordinates!**
-
-This is essential to prevent "weird dragging" or stretching behavior. When users drag objects, Rapport uses the position as the transform origin. If position doesn't match the geometric center of children, objects will move incorrectly.
-
-**How to calculate proper position:**
-
-1. **Create all child elements first** with their desired coordinates
-2. **Find the bounding box** - determine min/max X and Y across all children
-3. **Calculate geometric center**:
-   - \`position.x = (minX + maxX) / 2\`
-   - \`position.y = (minY + maxY) / 2\`
-4. **Set position metadata** to this center point
-
-**Example calculation:**
-
-\`\`\`
-Child elements:
-- rect at x=100, width=200 → X range: 100 to 300
-- circle at cx=250, r=50 → X range: 200 to 300
-Combined X range: 100 to 300 → Center X: (100 + 300) / 2 = 200
-
-- rect at y=150, height=100 → Y range: 150 to 250
-- circle at cy=200, r=50 → Y range: 150 to 250
-Combined Y range: 150 to 250 → Center Y: (150 + 250) / 2 = 200
-
-Therefore: <position x="200" y="200"/>
-\`\`\`
-
-**❌ BAD Example (will cause dragging issues):**
-
-\`\`\`xml
-<g data-object-type="object" data-object-name="Misaligned Box">
-  <metadata>
-    <position x="200" y="200"/>  <!-- Position here -->
-  </metadata>
-  <!-- But child is 600px away! -->
-  <circle cx="800" cy="900" r="50"/>  ❌ 600-700px offset causes stretching!
-</g>
-\`\`\`
-
-**✅ GOOD Example (proper alignment):**
-
-\`\`\`xml
-<g data-object-type="object" data-object-name="Aligned Box">
-  <metadata>
-    <position x="800" y="900"/>  <!-- Position matches child center -->
-  </metadata>
-  <circle cx="800" cy="900" r="50"/>  ✓ Perfect alignment!
-</g>
-\`\`\`
-
-**Guidelines:**
-- Keep children within ±200px of position point for medium-sized objects
-- For grouped objects (multiple children), position should be at the geometric center
-- Validator will warn if offset exceeds safe thresholds
-
-### Transform Attributes (Alternative Approach)
-
-You can use SVG transforms to position children relative to (0, 0):
-
-**When to use transforms:**
-- Use \`transform="translate(x, y)"\` on the \`<g>\` wrapper when you want children at relative coordinates
-- Ensure position metadata matches the transform values
-- This approach works well for reusable components
-
-**Example with transform:**
-
-\`\`\`xml
-<g id="obj-${Date.now()}" data-object-type="object"
-   data-object-name="Transformed Box"
-   transform="translate(200, 200)">
-  <metadata>
-    <position x="200" y="200"/>  <!-- Matches transform -->
-  </metadata>
-  <!-- Children positioned around (0, 0) -->
-  <rect x="-50" y="-50" width="100" height="100"/>
-  <circle cx="0" cy="0" r="20"/>
-</g>
-\`\`\`
-
-**⚠️ IMPORTANT:**
-- **Don't mix transforms and absolute coordinates** - choose one approach
-- **Don't nest multiple transforms** - use a single transform on the group
-- **Keep it simple** - prefer absolute coordinates unless you have a specific reason for transforms
-
-### Complex Multi-Part Objects
-
-For objects with multiple children (like architecture diagrams, cartoon characters, etc.):
-
-**Example: Multi-part object (layered structure):**
-
-\`\`\`xml
-<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Layered Component">
-  <metadata>
-    <position x="300" y="200"/>  <!-- Center of entire structure -->
-  </metadata>
-  <!-- Background layer (centered at position) -->
-  <rect x="250" y="150" width="100" height="100" fill="#f0f0f0" stroke="#ccc"/>
-  <!-- Icon layer (near center) -->
-  <circle cx="300" cy="200" r="30" fill="#3b82f6"/>
-  <!-- Text layer (near center) -->
-  <text x="300" y="270" text-anchor="middle" font-size="12">Label</text>
-  <!-- All parts within ±50px of position (300, 200) -->
-</g>
-\`\`\`
-
-**Best practices for complex objects:**
-1. Design all parts with position in mind
-2. Calculate bounding box of ALL children
-3. Set position to bounding box center
-4. Verify all children are within ±20% of object size from position
-
-### CRITICAL: Z-Index and Stacking Order
-
-**SVG renders elements in document order** - elements that appear later in the SVG are rendered on top of earlier elements. This is crucial for layered diagrams!
-
-**Problem: Items hiding behind backgrounds**
-
-When creating architecture diagrams or layered UIs with background rectangles, you MUST order elements carefully:
-
-**❌ BAD Example (backgrounds hide dragged items):**
-
-\`\`\`xml
-<svg>
-  <g data-object-name="Title">...</g>
-
-  <!-- Background layer 1 -->
-  <g data-object-name="Frontend Layer Background">
-    <rect width="1400" height="160" fill="#1e3a5f"/>
-  </g>
-
-  <!-- Content items on layer 1 -->
-  <g data-object-name="Component A">...</g>  <!-- Can be dragged BEHIND layers below! -->
-
-  <!-- Background layer 2 (renders AFTER Component A) -->
-  <g data-object-name="Backend Layer Background">
-    <rect width="1400" height="180" fill="#5a1e1e"/>
-  </g>
-
-  <!-- This background will COVER Component A when dragged -->
-</svg>
-\`\`\`
-
-**✅ GOOD Example (all backgrounds first, then content on top):**
-
-\`\`\`xml
-<svg>
-  <!-- ALL background layers FIRST (at the back) -->
-  <g data-object-name="Frontend Layer Background">
-    <rect width="1400" height="160" fill="#1e3a5f"/>
-  </g>
-
-  <g data-object-name="API Layer Background">
-    <rect width="1400" height="120" fill="#1e5a3a"/>
-  </g>
-
-  <g data-object-name="Backend Layer Background">
-    <rect width="1400" height="180" fill="#5a1e1e"/>
-  </g>
-
-  <!-- ALL content elements AFTER (on top) -->
-  <g data-object-name="Title">...</g>
-  <g data-object-name="Component A">...</g>
-  <g data-object-name="Component B">...</g>
-  <g data-object-name="Component C">...</g>
-</svg>
-\`\`\`
-
-**Ordering Guidelines:**
-
-1. **Markers and Definitions** - Always in \`<defs>\` at the very start (don't wrap in object containers)
-2. **Background layers** - Large container rectangles, backgrounds, borders
-3. **Connecting elements** - Lines, arrows between components
-4. **Content elements** - Individual components, boxes, text, icons
-5. **Foreground/Overlay elements** - Floating UI, highlights, tooltips
-
-**Testing**: Mentally visualize the document as a stack of transparencies - items at the top of the SVG are at the bottom of the visual stack.
-
-### Supported Elements
-
-**Rectangles (boxes)** - MUST be wrapped in object container
-\`\`\`xml
-<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Rectangle">
-  <metadata>
-    <object-data xmlns="">
-      <name>Rectangle</name>
-      <position x="100" y="100"/>
-    </object-data>
-  </metadata>
-  <rect id="box-${Date.now()}" x="100" y="100" width="200" height="150"
-        fill="#ffffff" stroke="#000000" stroke-width="2"
-        rx="8" ry="8" data-type="box"/>
-</g>
-\`\`\`
-
-**Circles** - MUST be wrapped in object container
-\`\`\`xml
-<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Circle">
-  <metadata>
-    <object-data xmlns="">
-      <name>Circle</name>
-      <position x="300" y="200"/>
-    </object-data>
-  </metadata>
-  <circle id="circle-${Date.now()}" cx="300" cy="200" r="50"
-          fill="#ffffff" stroke="#000000" stroke-width="2"
-          data-type="circle"/>
-</g>
-\`\`\`
-
-**Lines** - MUST be wrapped in object container
-\`\`\`xml
-<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Line">
-  <metadata>
-    <object-data xmlns="">
-      <name>Line</name>
-      <position x="0" y="0"/>
-    </object-data>
-  </metadata>
-  <line id="line-${Date.now()}" x1="100" y1="100" x2="300" y2="200"
-        stroke="#000000" stroke-width="2" data-type="line"/>
-</g>
-\`\`\`
-
-**Pencil Paths** - MUST be wrapped in object container
-\`\`\`xml
-<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Drawing">
-  <metadata>
-    <object-data xmlns="">
-      <name>Drawing</name>
-      <position x="0" y="0"/>
-    </object-data>
-  </metadata>
-  <path id="pencil-${Date.now()}" d="M 100 100 L 150 120 L 200 100"
-        stroke="#000000" stroke-width="2" fill="none"
-        stroke-linecap="round" stroke-linejoin="round"
-        data-type="pencil"/>
-</g>
-\`\`\`
-
-**Text** - MUST be wrapped in object container
-\`\`\`xml
-<g id="obj-${Date.now()}" data-object-type="object" data-object-name="Text">
-  <metadata>
-    <object-data xmlns="">
-      <name>Text</name>
-      <position x="100" y="100"/>
-    </object-data>
-  </metadata>
-  <text id="text-${Date.now()}" x="100" y="100"
-        font-size="16" font-family="Arial" fill="#000000"
-        data-type="text">Your text here</text>
-</g>
-\`\`\`
-
-### Important Rules
-
-1. **Always wrap elements in object containers**: Use \`<g data-object-type="object">\` wrapper for selectability
-2. **Include metadata for all objects**: Required structure with \`<object-data>\` containing name and position
-3. **Always include unique IDs**: Use format like \`obj-timestamp\` for groups, \`element-timestamp\` for inner elements
-4. **Always include data-type attribute**: Helps our system recognize element types (box, circle, line, pencil, text)
-5. **Always include data-object-name**: User-friendly name for the object
-6. **Preserve the SVG wrapper**: Keep the \`<svg>\` tag and its attributes
-7. **Use valid colors**: Hex colors (#RRGGBB) or named colors
-8. **Keep stroke-width reasonable**: Between 1-20 for most elements
-9. **Preserve existing elements**: Unless explicitly asked to remove them
-
-### Security Notes
-- Script tags (\`<script>\`) are NOT allowed and will be rejected
-- Event handlers (onclick, onload, etc.) are NOT allowed
-- External references (xlink:href to external URLs) are restricted
-- Only inline styles and SVG attributes are permitted
-
-### Example: Adding a New Box
-
-To add a blue box at position (400, 300):
-
-\`\`\`xml
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" id="canvas">
-  <!-- Existing elements stay here -->
-  ${data.svg_document.match(/<svg[^>]*>([\s\S]*)<\/svg>/)?.[1]?.trim() || ''}
-
-  <!-- New selectable object -->
-  <g id="obj-${Date.now()}" data-object-type="object" data-object-name="Blue Box">
-    <metadata>
-      <object-data xmlns="">
-        <name>Blue Box</name>
-        <position x="400" y="300"/>
-      </object-data>
-    </metadata>
-    <rect id="box-${Date.now()}" x="400" y="300" width="200" height="150"
-          fill="#3b82f6" stroke="#1e40af" stroke-width="2"
-          rx="8" ry="8" data-type="box"/>
-  </g>
-</svg>
-\`\`\`
-
-### Example: Modifying an Existing Element
-
-To change the color of an element with id="box-123":
-
-1. Find the element: \`<rect id="box-123" ... fill="#ffffff" .../>\`
-2. Change the fill: \`fill="#3b82f6"\`
-3. Return the complete SVG with all elements
-
-### Response Format
-
-When making changes, return ONLY the complete, valid SVG document:
-- Start with \`<svg xmlns="http://www.w3.org/2000/svg" ...\`
-- Include ALL elements (existing + new/modified)
-- End with \`</svg>\`
-- No markdown code blocks, just the raw SVG
-
-## Tips for AI Agents
-
-- Start by understanding the current canvas state
-- Plan your changes before modifying the SVG
-- Test that your SVG is valid XML before sending
-- Be conservative with changes - it's easier to add than to fix mistakes
-- When in doubt, ask for clarification rather than guessing
-- Coordinates increase right (x) and down (y)
-- ViewBox format is: x y width height
-
-## Current Canvas Info
-- Project ID: ${data.id}
+## Canvas Info
+- Project: ${data.id}
 - Title: ${data.title}
-- Pins: ${data.pins?.length || 0} navigation pins
-- Element Count: ${(data.svg_document.match(/<(rect|circle|path|line|text|ellipse|polygon|polyline)/g) || []).length}
-`;
+- ViewBox: ${viewBox}
+- Elements: ${countElements(data.svg_document)}
+- Objects: ${countObjects(data.svg_document)}
+- Pins: ${data.pins?.length || 0}`;
+}
+
+export async function getCanvasTemplate(args: GetCanvasTemplateArgs) {
+	const userId = getUserId();
+
+	// Default to level 2 (SVG only) for token efficiency
+	const detailLevel = args.detail_level ?? 2;
+
+	// Get current canvas state via API
+	const response = await apiRequest(`/api/projects/recent?userId=${userId}`);
+
+	if (!response.project) {
+		throw new Error('Project not found for your account');
+	}
+
+	const data = response.project;
+	let responseText: string;
+
+	switch (detailLevel) {
+		case 0:
+			responseText = buildMetadataResponse(data);
+			break;
+		case 1:
+			responseText = buildSummaryResponse(data);
+			break;
+		case 2:
+			responseText = buildSVGResponse(data);
+			break;
+		case 3:
+			responseText = buildFullResponse(data);
+			break;
+		default:
+			// Default to SVG only for invalid levels
+			responseText = buildSVGResponse(data);
+	}
 
 	return {
 		content: [
 			{
 				type: 'text' as const,
-				text: template
+				text: responseText
 			}
 		]
 	};

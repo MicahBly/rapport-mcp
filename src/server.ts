@@ -33,14 +33,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 	tools: [
 		{
 			name: 'get_svg',
-			description: 'Get the SVG document and metadata for your Rapport canvas. Returns the current SVG along with canvas information like element count, viewBox, pins, and update history. Automatically fetches your canvas using your authenticated user account.',
+			description: 'Get the SVG document for your Rapport canvas. Returns the current SVG. Optionally include metadata. Automatically fetches your canvas using your authenticated user account.',
 			inputSchema: {
 				type: 'object',
 				properties: {
 					include_metadata: {
 						type: 'boolean',
-						description: 'Include canvas metadata (default: true)',
-						default: true
+						description: 'Include canvas metadata (default: false for token efficiency)',
+						default: false
 					}
 				},
 				required: []
@@ -48,10 +48,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 		},
 		{
 			name: 'get_canvas_template',
-			description: 'Get a comprehensive template and guide for modifying your Rapport canvas. This provides the current canvas state plus detailed instructions on how to add/modify elements, including examples, security guidelines, and best practices. USE THIS FIRST before making any changes to understand the canvas structure. Automatically fetches your canvas using your authenticated user account.',
+			description: `Get canvas at specified detail level. DEFAULT: level 2 (SVG only).
+
+LEVELS:
+- 0: Metadata only (50 tokens) - quick status check
+- 1: Summary (200 tokens) - element breakdown
+- 2: SVG only (500-2000 tokens) - DEFAULT for editing
+- 3: Full guide (1500-3000 tokens) - first interaction only
+
+Use level=3 on FIRST interaction to learn format, then level=2 for subsequent edits.`,
 			inputSchema: {
 				type: 'object',
-				properties: {},
+				properties: {
+					detail_level: {
+						type: 'integer',
+						enum: [0, 1, 2, 3],
+						default: 2,
+						description: '0=metadata, 1=summary, 2=svg (default), 3=full guide'
+					}
+				},
 				required: []
 			}
 		},

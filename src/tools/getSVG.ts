@@ -10,11 +10,11 @@ export async function getSVG(args: GetSVGArgs) {
 	// Call the frontend API endpoint
 	const response = await apiRequest(`/api/projects/recent?userId=${userId}`);
 
-	if (!response.data) {
+	if (!response.project) {
 		throw new Error('Project not found for your account');
 	}
 
-	const data = response.data;
+	const data = response.project;
 
 	// Parse SVG to get element count and canvas info
 	const elementCount = (data.svg_document.match(/<(rect|circle|path|line|text|ellipse|polygon|polyline)/g) || []).length;
@@ -23,7 +23,7 @@ export async function getSVG(args: GetSVGArgs) {
 
 	let responseText = data.svg_document;
 
-	if (args.include_metadata !== false) {
+	if (args.include_metadata === true) {
 		const metadata = {
 			project_id: data.id,
 			title: data.title,
