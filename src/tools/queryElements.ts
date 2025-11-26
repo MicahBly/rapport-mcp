@@ -11,11 +11,11 @@ export async function queryElements(args: QueryElementsArgs) {
 	// Get canvas via API
 	const response = await apiRequest(`/api/projects/recent?userId=${userId}`);
 
-	if (!response.data) {
+	if (!response.project) {
 		throw new Error('Project not found for your account');
 	}
 
-	const data = response.data;
+	const data = response.project;
 
 	const parser = new DOMParser();
 	const doc = parser.parseFromString(data.svg_document, 'image/svg+xml');

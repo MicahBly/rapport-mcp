@@ -28,11 +28,11 @@ export async function exportOpenAPI(args: ExportOpenAPIArgs) {
 	// Fetch the canvas
 	const response = await apiRequest(`/api/projects/recent?userId=${userId}`);
 
-	if (!response.data) {
+	if (!response.project) {
 		throw new Error('Project not found for your account');
 	}
 
-	const data = response.data;
+	const data = response.project;
 	const svgDocument = data.svg_document;
 
 	// Parse SVG to find API-related semantic elements
