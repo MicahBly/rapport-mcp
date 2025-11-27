@@ -43,8 +43,12 @@ function saveConfig(config: Config) {
 	fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), { mode: 0o600 });
 }
 
+function getBaseUrl(): string {
+	return process.env.RAPPORT_API_URL || 'https://rapport.dev';
+}
+
 async function pollForAuth(sessionId: string): Promise<PollResponse> {
-	const pollUrl = `https://rapport.dev/api/mcp/auth/poll?session=${sessionId}`;
+	const pollUrl = `${getBaseUrl()}/api/mcp/auth/poll?session=${sessionId}`;
 
 	try {
 		const response = await fetch(pollUrl);
@@ -73,7 +77,7 @@ async function login() {
 
 	// Generate unique session ID
 	const sessionId = randomUUID();
-	const authUrl = `https://rapport.dev/mcp/auth?session=${sessionId}`;
+	const authUrl = `${getBaseUrl()}/mcp/auth?session=${sessionId}`;
 
 	console.log(`🔗 Opening browser to authenticate...\n`);
 
