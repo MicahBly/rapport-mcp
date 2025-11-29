@@ -1,36 +1,57 @@
 import { apiRequest, getUserId } from '../apiClient.js';
 
-// Condensed instructions for level 3 (full) - reduced from ~1600 to ~400 tokens
+// Condensed instructions for level 3 (full)
 const CONDENSED_INSTRUCTIONS = `## SVG Canvas Editing Guide
 
-### Element Reference
-| Type | Key Attributes | data-type |
-|------|----------------|-----------|
-| rect | x, y, width, height, fill, stroke, rx | "box" |
-| circle | cx, cy, r, fill, stroke | "shape" data-shape="circle" |
-| line | x1, y1, x2, y2, stroke | "line" |
-| path | d, stroke, fill | "pencil" |
-| text | x, y, font-size, fill | "text" |
-| g | transform | "group" or data-object-type="object" |
+### Allowed SVG Attributes (ONLY these are permitted)
+**Global** (all elements): id, class, style, transform, opacity, visibility, data-type, data-object-type, data-object-name
+
+| Element | Allowed Attributes |
+|---------|-------------------|
+| svg | width, height, viewBox, xmlns, preserveAspectRatio |
+| rect | x, y, width, height, rx, ry, fill, stroke, stroke-width, stroke-dasharray, stroke-dashoffset |
+| circle | cx, cy, r, fill, stroke, stroke-width, stroke-dasharray, stroke-dashoffset |
+| ellipse | cx, cy, rx, ry, fill, stroke, stroke-width, stroke-dasharray, stroke-dashoffset |
+| line | x1, y1, x2, y2, stroke, stroke-width, stroke-linecap, stroke-dasharray, stroke-dashoffset, marker-start, marker-end |
+| path | d, fill, stroke, stroke-width, stroke-linecap, stroke-linejoin, stroke-dasharray, stroke-dashoffset, fill-rule |
+| polyline | points, fill, stroke, stroke-width, stroke-linejoin, stroke-linecap, stroke-dasharray, stroke-dashoffset |
+| polygon | points, fill, stroke, stroke-width, stroke-linejoin, stroke-dasharray, stroke-dashoffset |
+| text | x, y, dx, dy, text-anchor, font-size, font-family, font-weight, fill |
+| g | transform |
+| marker | markerWidth, markerHeight, refX, refY, orient, markerUnits, viewBox |
+| image | x, y, width, height, href, xlink:href, preserveAspectRatio |
+
+### FORBIDDEN (will cause 400 error)
+- Event handlers: onclick, onload, onmouseover, etc.
+- Scripts: \`<script>\` tags, javascript: URLs
+- External URLs in href (use data: URIs for images)
+
+### data-type Values
+| Element | data-type |
+|---------|-----------|
+| rect | "box" |
+| circle/ellipse | "shape" |
+| line | "line" |
+| path | "pencil" |
+| text | "text" |
+| g (wrapper) | use data-object-type="object" |
 
 ### Object Wrapper Format
 \`\`\`xml
 <g id="obj-ID" data-object-type="object" data-object-name="Name">
   <metadata><object-data xmlns=""><name>Name</name><position x="X" y="Y"/></object-data></metadata>
-  <!-- Child elements MUST be within ±200px of position point -->
-  <rect x="X-15" y="Y-15" width="30" height="30" fill="#color"/>
+  <rect x="X-15" y="Y-15" width="30" height="30" fill="#color" data-type="box"/>
 </g>
 \`\`\`
 
 ### Rules
 1. Unique IDs: \`element-timestamp-random\`
-2. Always include data-type attribute
+2. Always include data-type attribute on shape elements
 3. Preserve SVG wrapper and existing elements
-4. Position metadata = center of child elements bounding box
-5. No scripts, event handlers, or external URLs
+4. Only use attributes from the allowed list above
 
 ### Response Format
-Return ONLY the complete SVG document (no markdown), starting with \`<svg xmlns="..."\` and ending with \`</svg>\``;
+Return ONLY the complete SVG document, starting with \`<svg xmlns="..."\` and ending with \`</svg>\``;
 
 export interface GetCanvasTemplateArgs {
 	detail_level?: 0 | 1 | 2 | 3;
