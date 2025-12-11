@@ -16,7 +16,7 @@ const CONDENSED_INSTRUCTIONS = `## SVG Canvas Editing Guide
 | path | d, fill, stroke, stroke-width, stroke-linecap, stroke-linejoin, stroke-dasharray, stroke-dashoffset, fill-rule |
 | polyline | points, fill, stroke, stroke-width, stroke-linejoin, stroke-linecap, stroke-dasharray, stroke-dashoffset |
 | polygon | points, fill, stroke, stroke-width, stroke-linejoin, stroke-dasharray, stroke-dashoffset |
-| text | x, y, dx, dy, text-anchor, font-size, font-family, font-weight, fill |
+| text | x, y, dx, dy, text-anchor, font-size, font-family, font-weight, font-style, fill, letter-spacing, text-decoration |
 | g | transform |
 | marker | markerWidth, markerHeight, refX, refY, orient, markerUnits, viewBox |
 | image | x, y, width, height, href, xlink:href, preserveAspectRatio |

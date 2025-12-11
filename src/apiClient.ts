@@ -1,9 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 
-// Supabase configuration (public values)
-const SUPABASE_URL = 'https://mqwcbblsvrqzytbujnge.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xd2NiYmxzdnJxenl0YnVqbmdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAyMTM4ODcsImV4cCI6MjA2NTc4OTg4N30.ZnoMtYS-6NINdHohO1n5I1q2oq-2v1mcesD2qquawwg';
+// Supabase configuration - fetched from rapport.dev or environment
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://oztmxtowxddowhebrhfm.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im96dG14dG93eGRkb3doZWJyaGZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxNzA5MjgsImV4cCI6MjA4MDc0NjkyOH0._mQnWTqv0Q1qd4X7Vf7evecN3-IRPo6-6FT1qom2e8c';
 
 interface Config {
 	access_token?: string;
